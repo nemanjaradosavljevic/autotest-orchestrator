@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AutoTest Orchestrator - Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:            #f9f9f7;
+    --surface:         #fcfcfb;
+    --text-primary:    #0b0b0b;
+    --text-secondary:  #52514e;
+    --text-muted:      #898781;
+    --gridline:        #e1e0d9;
+    --border:          rgba(11,11,11,0.10);
+    --sequential:      #2a78d6;
+    --sequential-track:#e5eefa;
+    --good:            #0ca30c;
+    --good-bg:         #e6f6e6;
+    --critical:        #d03b3b;
+    --critical-bg:     #fbe9e9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page:            #0d0d0d;
+      --surface:         #1a1a19;
+      --text-primary:    #ffffff;
+      --text-secondary:  #c3c2b7;
+      --text-muted:      #898781;
+      --gridline:        #2c2c2a;
+      --border:          rgba(255,255,255,0.10);
+      --sequential:      #3987e5;
+      --sequential-track:#1f2a38;
+      --good:            #0ca30c;
+      --good-bg:         #123312;
+      --critical:        #e66767;
+      --critical-bg:     #3a1414;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:            #0d0d0d;
+    --surface:         #1a1a19;
+    --text-primary:    #ffffff;
+    --text-secondary:  #c3c2b7;
+    --text-muted:      #898781;
+    --gridline:        #2c2c2a;
+    --border:          rgba(255,255,255,0.10);
+    --sequential:      #3987e5;
+    --sequential-track:#1f2a38;
+    --good:            #0ca30c;
+    --good-bg:         #123312;
+    --critical:        #e66767;
+    --critical-bg:     #3a1414;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--text-secondary); font-size: 14px; margin: 0 0 24px; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 14px; margin: 0 0 16px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+  .controls { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--text-secondary); }
+  .field input {
+    width: 140px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--gridline);
+    background: var(--page);
+    color: var(--text-primary);
+    font-size: 14px;
+  }
+  button#runBtn {
+    padding: 9px 18px;
+    border-radius: 6px;
+    border: none;
+    background: var(--sequential);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button#runBtn:disabled { opacity: .6; cursor: default; }
+  .status-line { font-size: 13px; color: var(--text-secondary); margin-top: 10px; min-height: 18px; }
+  .status-line.error { color: var(--critical); }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .kpi .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .kpi .value { font-size: 28px; font-weight: 700; font-variant-numeric: proportional-nums; }
+  .kpi.good .value { color: var(--good); }
+  .kpi.critical .value { color: var(--critical); }
+
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { width: 190px; flex-shrink: 0; font-size: 13px; color: var(--text-primary); }
+  .bar-track { flex: 1; height: 14px; background: var(--sequential-track); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--sequential); border-radius: 4px; min-width: 3px; }
+  .bar-count { width: 44px; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-secondary); flex-shrink: 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--gridline);
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--gridline);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  /* U ovoj tabeli su SAMO neuspeli scenariji, pa je "actual" uvek pogresna
+     (necekivana) odluka, a "expected" uvek zeljena/ispravna - zato boja
+     prati kolonu (ulogu), a ne samo ON/OFF vrednost. */
+  .pill.actual { background: var(--critical-bg); color: var(--critical); }
+  .pill.expected { background: var(--good-bg); color: var(--good); }
+  .table-scroll { overflow-x: auto; }
+  .empty { color: var(--text-muted); font-size: 13px; }
+  .table-note { color: var(--text-muted); font-size: 12px; margin-top: 10px; }
+
+  .pagination { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .page-btn {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--gridline);
+    background: var(--surface);
+    color: var(--text-primary);
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .page-btn:disabled { opacity: .4; cursor: default; }
+  .page-info { font-size: 12.5px; color: var(--text-secondary); }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+  .tab-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab-btn.active { background: var(--sequential); color: #fff; border-color: var(--sequential); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AutoTest Orchestrator</h1>
+  <p class="subtitle" id="subtitle">AEB Virtual ECU - V1 prototip - pregled test run-ova</p>
+
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-usecase="aeb">AEB (kocenje)</button>
+    <button class="tab-btn" data-usecase="lka">LKA (drzanje trake)</button>
+    <button class="tab-btn" data-usecase="acc">ACC (odrzavanje razmaka)</button>
+  </div>
+
+  <div class="panel">
+    <h2>Pokreni test run</h2>
+    <div class="controls">
+      <div class="field">
+        <label for="countInput">Broj scenarija</label>
+        <input id="countInput" type="number" min="1" max="50000" value="1000" />
+      </div>
+      <div class="field">
+        <label for="seedInput">Seed</label>
+        <input id="seedInput" type="number" value="42" />
+      </div>
+      <button id="runBtn">Pokreni testove</button>
+    </div>
+    <div id="statusLine" class="status-line"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Rezime</h2>
+    <div class="kpi-row" id="kpiRow">
+      <div class="kpi"><div class="label">Ukupno</div><div class="value" id="kpiTotal">-</div></div>
+      <div class="kpi good"><div class="label">PASS</div><div class="value" id="kpiPassed">-</div></div>
+      <div class="kpi critical"><div class="label">FAIL</div><div class="value" id="kpiFailed">-</div></div>
+      <div class="kpi"><div class="label">Pass rate</div><div class="value" id="kpiRate">-</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Failure pattern-i</h2>
+    <div id="patternsBox"><p class="empty">Nema jos podataka - pokreni test run.</p></div>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h2 style="margin:0;">Neuspeli scenariji</h2>
+      <button class="page-btn" id="downloadCsvBtn" style="display:none">Preuzmi CSV</button>
+    </div>
+    <p class="table-note" style="margin-top:-8px; margin-bottom: 14px;">
+      "Actual" je sta je ECU stvarno uradio (crveno - to je razlog zasto je scenario pao),
+      "Expected" je sta je specifikacija (sa bezbednosnom marginom) zahtevala (zeleno).
+    </p>
+    <div class="table-scroll">
+      <table id="failuresTable" style="display:none">
+        <thead><tr id="failuresHeadRow"></tr></thead>
+        <tbody id="failuresBody"></tbody>
+      </table>
+      <p class="empty" id="failuresEmpty">Nema jos podataka - pokreni test run.</p>
+    </div>
+    <div class="pagination" id="pagination" style="display:none">
+      <button class="page-btn" id="prevPageBtn">&larr; Prethodna</button>
+      <span class="page-info" id="pageInfo"></span>
+      <button class="page-btn" id="nextPageBtn">Sledeca &rarr;</button>
+    </div>
+    <p class="table-note" id="failuresNote"></p>
+  </div>
+</div>
+
+<script>
+// Svaki use case je samo konfiguracija: koje endpoint-e da zove, kako da
+// prevede failure pattern kljuceve u citljiv tekst, i koje kolone da
+// prikaze u tabeli neuspelih scenarija. Dodavanje treceg use case-a
+// (npr. kasnije neki jos jedan) znaci samo novi unos ovde - renderovanje
+// ispod ne zna nista use-case-specificno.
+function fmtNum(v) { return v === null || v === undefined ? "-" : v; }
+
+const USECASES = {
+  aeb: {
+    label: "AEB (kocenje)",
+    subtitle: "AEB Virtual ECU - V1 prototip - pregled test run-ova",
+    runUrl: "/api/run",
+    summaryUrl: "/api/summary",
+    patternLabels: {
+      safety_margin_edge_case: "Bezbednosna margina (edge-case)",
+      high_speed_wet_road: "Velika brzina + kisa",
+      low_distance_high_speed: "Mala udaljenost + velika brzina",
+      high_sensor_delay: "Sporo reagovanje senzora",
+    },
+    columns: [
+      { header: "ID", cell: (f) => f.id },
+      { header: "Brzina (km/h)", cell: (f) => f.vehicle_speed_kmh },
+      { header: "Udaljenost (m)", cell: (f) => f.obstacle_distance_m },
+      { header: "Vreme", cell: (f) => (f.weather === "rain" ? "kisa" : "suvo") },
+      { header: "Trenje", cell: (f) => f.road_friction },
+      { header: "Senzor delay (ms)", cell: (f) => f.sensor_delay_ms },
+      { header: "Actual", cell: (f) => `<span class="pill actual">${f.actual_brake ? "ON" : "OFF"}</span>` },
+      { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_brake ? "ON" : "OFF"}</span>` },
+      { header: "Actual stop (m)", cell: (f) => f.actual_stopping_distance_m },
+      { header: "Potrebno sa marginom (m)", cell: (f) => f.required_distance_with_margin_m },
+    ],
+  },
+  lka: {
+    label: "LKA (drzanje trake)",
+    subtitle: "LKA Virtual ECU - V1 prototip - pregled test run-ova",
+    runUrl: "/api/lka/run",
+    summaryUrl: "/api/lka/summary",
+    patternLabels: {
+      safety_margin_edge_case: "Bezbednosna margina (edge-case)",
+      fast_drift: "Brzo priblizavanje ivici",
+      high_speed_fast_drift: "Velika brzina + brzo priblizavanje",
+    },
+    columns: [
+      { header: "ID", cell: (f) => f.id },
+      { header: "Brzina (km/h)", cell: (f) => f.vehicle_speed_kmh },
+      { header: "Lateral ofset (m)", cell: (f) => f.lateral_offset_m },
+      { header: "Pola sirine trake (m)", cell: (f) => f.lane_half_width_m },
+      { header: "Lateral brzina (m/s)", cell: (f) => f.lateral_velocity_m_s },
+      { header: "Vozac upravlja", cell: (f) => (f.driver_steering_active ? "da" : "ne") },
+      { header: "Actual", cell: (f) => `<span class="pill actual">${f.actual_intervene ? "ON" : "OFF"}</span>` },
+      { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_intervene ? "ON" : "OFF"}</span>` },
+      { header: "Actual TTLC (s)", cell: (f) => fmtNum(f.actual_ttlc_s) },
+      { header: "Expected TTLC sa marginom (s)", cell: (f) => fmtNum(f.expected_ttlc_s) },
+    ],
+  },
+  acc: {
+    label: "ACC (odrzavanje razmaka)",
+    subtitle: "ACC Virtual ECU - V1 prototip - pregled test run-ova",
+    runUrl: "/api/acc/run",
+    summaryUrl: "/api/acc/summary",
+    patternLabels: {
+      safety_margin_edge_case: "Bezbednosna margina (edge-case)",
+      fast_closing: "Brzo priblizavanje vozilu ispred",
+      high_speed_fast_closing: "Velika brzina + brzo priblizavanje",
+    },
+    columns: [
+      { header: "ID", cell: (f) => f.id },
+      { header: "Moja brzina (km/h)", cell: (f) => f.ego_speed_kmh },
+      { header: "Brzina vozila ispred (km/h)", cell: (f) => f.lead_speed_kmh },
+      { header: "Razmak (m)", cell: (f) => f.gap_distance_m },
+      { header: "Vozac na gasu", cell: (f) => (f.driver_override_active ? "da" : "ne") },
+      { header: "Actual", cell: (f) => `<span class="pill actual">${f.actual_decelerate ? "ON" : "OFF"}</span>` },
+      { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_decelerate ? "ON" : "OFF"}</span>` },
+      { header: "Zeljeni razmak (m)", cell: (f) => f.actual_desired_gap_m },
+      { header: "Potrebno sa marginom (m)", cell: (f) => f.expected_desired_gap_with_margin_m },
+    ],
+  },
+};
+
+let activeUsecase = "aeb";
+
+// Paginacija tabele neuspelih scenarija - API salje SVE failure-e, a ovde
+// ih delimo na stranice (25 po strani) da tabela ostane pregledna kad ih
+// ima puno.
+const PAGE_SIZE = 25;
+const failuresState = { rows: [], page: 1 };
+
+// Mora da odgovara config.MAX_SCENARIO_COUNT na backend-u (i <input max>
+// iznad) - ovde postoji samo da bi klijent mogao da javi gresku odmah,
+// bez cekanja na server.
+const MAX_SCENARIO_COUNT = 50000;
+
+const runBtn = document.getElementById("runBtn");
+const statusLine = document.getElementById("statusLine");
+const prevPageBtn = document.getElementById("prevPageBtn");
+const nextPageBtn = document.getElementById("nextPageBtn");
+const downloadCsvBtn = document.getElementById("downloadCsvBtn");
+
+function fmtPct(n) { return n.toFixed(2) + "%"; }
+
+function setStatus(text, isError) {
+  statusLine.textContent = text;
+  statusLine.classList.toggle("error", !!isError);
+}
+
+// Cita i validira unos pre nego sto se posalje na server - da korisnik ne
+// ceka round-trip do backend-a da bi saznao da je npr. upisao slovo.
+function readRunInputs() {
+  const countRaw = document.getElementById("countInput").value.trim();
+  const seedRaw = document.getElementById("seedInput").value.trim();
+  const count = Number(countRaw);
+  const seed = Number(seedRaw);
+
+  if (countRaw === "" || !Number.isInteger(count)) {
+    return { error: "Broj scenarija mora biti ceo broj." };
+  }
+  if (count < 1 || count > MAX_SCENARIO_COUNT) {
+    return { error: `Broj scenarija mora biti izmedju 1 i ${MAX_SCENARIO_COUNT}.` };
+  }
+  if (seedRaw === "" || !Number.isInteger(seed)) {
+    return { error: "Seed mora biti ceo broj." };
+  }
+  return { count, seed };
+}
+
+// Pretvara gresku fetch-a (mrezni problem vs. HTTP status vs. neispravan
+// unos koji je server odbio) u razumljivu poruku na srpskom.
+function describeFetchError(e, res, body) {
+  if (e) {
+    return "Ne mogu da se povezem sa serverom. Proveri da li je backend pokrenut (uvicorn api.main:app --reload).";
+  }
+  if (body && Array.isArray(body.detail)) {
+    const msgs = body.detail.map((d) => (d && d.msg) || JSON.stringify(d)).join("; ");
+    return "Server je odbio zahtev: " + msgs;
+  }
+  if (res) {
+    return `Server je vratio gresku (HTTP ${res.status}).`;
+  }
+  return "Doslo je do neocekivane greske.";
+}
+
+function renderSummary(data) {
+  document.getElementById("kpiTotal").textContent = data.summary.total;
+  document.getElementById("kpiPassed").textContent = data.summary.passed;
+  document.getElementById("kpiFailed").textContent = data.summary.failed;
+  document.getElementById("kpiRate").textContent = fmtPct(data.summary.pass_rate_pct);
+
+  renderPatterns(data.patterns);
+  renderFailures(data.failures, data.failures_shown, data.failures_total);
+}
+
+function renderPatterns(patterns) {
+  const box = document.getElementById("patternsBox");
+  const labels = USECASES[activeUsecase].patternLabels;
+  const entries = Object.entries(patterns || {}).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    box.innerHTML = '<p class="empty">Nema failure-a u poslednjem run-u.</p>';
+    return;
+  }
+  const max = Math.max(...entries.map((e) => e[1]));
+  box.innerHTML = entries
+    .map(([key, count]) => {
+      const label = labels[key] || key;
+      const pct = Math.max(3, Math.round((count / max) * 100));
+      return `
+        <div class="bar-row">
+          <div class="bar-label">${label}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <div class="bar-count">${count}</div>
+        </div>`;
+    })
+    .join("");
+}
+
+function renderFailures(failures, shown, total) {
+  const table = document.getElementById("failuresTable");
+  const empty = document.getElementById("failuresEmpty");
+  const note = document.getElementById("failuresNote");
+  const headRow = document.getElementById("failuresHeadRow");
+  const columns = USECASES[activeUsecase].columns;
+
+  headRow.innerHTML = columns.map((c) => `<th>${c.header}</th>`).join("");
+
+  failuresState.rows = failures || [];
+  failuresState.page = 1;
+
+  if (failuresState.rows.length === 0) {
+    table.style.display = "none";
+    empty.style.display = "block";
+    document.getElementById("pagination").style.display = "none";
+    downloadCsvBtn.style.display = "none";
+    note.textContent = "";
+    return;
+  }
+
+  table.style.display = "table";
+  empty.style.display = "none";
+  downloadCsvBtn.style.display = "inline-block";
+  renderFailuresPage();
+
+  note.textContent =
+    total > shown
+      ? `Prikazano ${shown} od ukupno ${total} neuspelih scenarija.`
+      : `Prikazano svih ${shown} neuspelih scenarija.`;
+}
+
+function renderFailuresPage() {
+  const body = document.getElementById("failuresBody");
+  const pagination = document.getElementById("pagination");
+  const pageInfo = document.getElementById("pageInfo");
+  const columns = USECASES[activeUsecase].columns;
+  const rows = failuresState.rows;
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+
+  failuresState.page = Math.min(Math.max(1, failuresState.page), pageCount);
+  const start = (failuresState.page - 1) * PAGE_SIZE;
+  const pageRows = rows.slice(start, start + PAGE_SIZE);
+
+  body.innerHTML = pageRows
+    .map((f) => `<tr>${columns.map((c) => `<td>${c.cell(f)}</td>`).join("")}</tr>`)
+    .join("");
+
+  if (rows.length <= PAGE_SIZE) {
+    pagination.style.display = "none";
+  } else {
+    pagination.style.display = "flex";
+    pageInfo.textContent = `Strana ${failuresState.page} od ${pageCount} (redovi ${start + 1}-${start + pageRows.length} od ${rows.length})`;
+    prevPageBtn.disabled = failuresState.page <= 1;
+    nextPageBtn.disabled = failuresState.page >= pageCount;
+  }
+}
+
+function resetView() {
+  document.getElementById("kpiTotal").textContent = "-";
+  document.getElementById("kpiPassed").textContent = "-";
+  document.getElementById("kpiFailed").textContent = "-";
+  document.getElementById("kpiRate").textContent = "-";
+  document.getElementById("patternsBox").innerHTML = '<p class="empty">Nema jos podataka - pokreni test run.</p>';
+  document.getElementById("failuresTable").style.display = "none";
+  document.getElementById("failuresEmpty").style.display = "block";
+  document.getElementById("pagination").style.display = "none";
+  document.getElementById("failuresNote").textContent = "";
+  downloadCsvBtn.style.display = "none";
+  failuresState.rows = [];
+  failuresState.page = 1;
+  setStatus("", false);
+}
+
+// CSV izvoz svih neuspelih scenarija (ne samo trenutne strane) za aktivni
+// use case - kolone i redosled prate ono sto se vidi u tabeli. Skida se
+// direktno u browseru korisnika (dashboard se pokrece sa njegove masine
+// preko uvicorn-a, pa download radi normalno).
+function toCsvField(value) {
+  const s = String(value);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function downloadFailuresCsv() {
+  if (failuresState.rows.length === 0) return;
+  const columns = USECASES[activeUsecase].columns;
+  const headerLine = columns.map((c) => toCsvField(c.header)).join(",");
+  const dataLines = failuresState.rows.map((f) =>
+    columns.map((c) => toCsvField(String(c.cell(f)).replace(/<[^>]+>/g, ""))).join(",")
+  );
+  const csv = [headerLine, ...dataLines].join("\r\n");
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${activeUsecase}_neuspeli_scenariji_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function loadSummary() {
+  let res;
+  try {
+    res = await fetch(USECASES[activeUsecase].summaryUrl);
+  } catch (e) {
+    setStatus(describeFetchError(e), true);
+    return;
+  }
+  if (!res.ok) {
+    setStatus(describeFetchError(null, res, null), true);
+    return;
+  }
+  try {
+    const data = await res.json();
+    if (!data.no_run_yet) renderSummary(data);
+  } catch (e) {
+    setStatus("Server je vratio neocekivan odgovor.", true);
+  }
+}
+
+async function runTests() {
+  const inputs = readRunInputs();
+  if (inputs.error) {
+    setStatus(inputs.error, true);
+    return;
+  }
+  const { count, seed } = inputs;
+
+  runBtn.disabled = true;
+  setStatus(`Pokrecem ${count} scenarija...`, false);
+
+  let res;
+  try {
+    res = await fetch(USECASES[activeUsecase].runUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count, seed }),
+    });
+  } catch (e) {
+    setStatus(describeFetchError(e), true);
+    runBtn.disabled = false;
+    return;
+  }
+
+  if (!res.ok) {
+    let body = null;
+    try {
+      body = await res.json();
+    } catch (_) {
+      /* odgovor nije bio JSON - body ostaje null, describeFetchError ima fallback */
+    }
+    setStatus(describeFetchError(null, res, body), true);
+    runBtn.disabled = false;
+    return;
+  }
+
+  try {
+    const data = await res.json();
+    renderSummary(data);
+    setStatus(`Gotovo - ${data.summary.total} scenarija, ${data.summary.failed} FAIL.`, false);
+  } catch (e) {
+    setStatus("Server je vratio neocekivan odgovor.", true);
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+function switchUsecase(usecase) {
+  if (usecase === activeUsecase) return;
+  activeUsecase = usecase;
+  document.getElementById("subtitle").textContent = USECASES[usecase].subtitle;
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.usecase === usecase);
+  });
+  resetView();
+  loadSummary();
+}
+
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => switchUsecase(btn.dataset.usecase));
+});
+runBtn.addEventListener("click", runTests);
+prevPageBtn.addEventListener("click", () => {
+  failuresState.page -= 1;
+  renderFailuresPage();
+});
+nextPageBtn.addEventListener("click", () => {
+  failuresState.page += 1;
+  renderFailuresPage();
+});
+downloadCsvBtn.addEventListener("click", downloadFailuresCsv);
+loadSummary();
+</script>
+</body>
+</html>
