@@ -1,7 +1,7 @@
 """
-Integracioni testovi za LKA scenario generator, test engine i failure
-analizu - isti princip kao test_generator.py / test_engine.py / test_failures.py
-za AEB.
+Integration tests for the LKA scenario generator, test engine, and failure
+analysis - the same approach as test_generator.py / test_engine.py / test_failures.py
+for AEB.
 """
 
 from analytics.lka_failures import failure_pattern_summary, group_failures

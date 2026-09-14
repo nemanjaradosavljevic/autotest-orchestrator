@@ -1,62 +1,65 @@
-# AutoTest Orchestrator - V1 (software-only prototip)
+# AutoTest Orchestrator - V1 (software-only prototype)
 
-Python aplikacija koja generise automotive test scenarije, pusta ih kroz
-softverske modele ECU-a, automatski proverava PASS/FAIL i grupise
-neuspesne scenarije po prepoznatljivim obrascima. Ima i web dashboard za
-pokretanje test run-ova i pregled rezultata.
+[![Tests](https://github.com/nemanjaradosavljevic/autotest-orchestrator/actions/workflows/tests.yml/badge.svg)](https://github.com/nemanjaradosavljevic/autotest-orchestrator/actions/workflows/tests.yml)
 
-Trenutno pokriva tri use case-a, sva tri po istom obrascu (Scenario Engine
--> Virtual ECU -> Test Engine -> Analytics -> Dashboard) - dokaz da
-arhitektura generalizuje na vise od jedne automotive funkcije:
+A Python application that generates automotive test scenarios, runs them
+through software ECU models, automatically checks PASS/FAIL, and groups
+failed scenarios by recognizable patterns. It also has a web dashboard for
+running test runs and reviewing results.
 
-- **AEB** (Automatic Emergency Braking) - prvi use case, iz PROJECT 01.
-- **LKA** (Lane Keep Assist) - drugi use case, dodat da se proveri da
-  arhitektura zaista radi za vise od kocenja.
-- **ACC** (Adaptive Cruise Control) - treci use case, odrzavanje
-  bezbednog razmaka od vozila ispred.
+It currently covers three use cases, all three following the same pattern
+(Scenario Engine -> Virtual ECU -> Test Engine -> Analytics -> Dashboard) -
+proof that the architecture generalizes to more than one automotive
+function:
 
-Ovo je faza **V1: Python -> Virtual ECU -> Test Engine -> Dashboard** iz
-projektnog plana.
+- **AEB** (Automatic Emergency Braking) - the first use case, from PROJECT 01.
+- **LKA** (Lane Keep Assist) - the second use case, added to verify that
+  the architecture really works for more than just braking.
+- **ACC** (Adaptive Cruise Control) - the third use case, maintaining a
+  safe gap from the vehicle ahead.
 
-## Struktura projekta
+This is phase **V1: Python -> Virtual ECU -> Test Engine -> Dashboard**
+from the project plan.
+
+## Project structure
 
 ```
 autotest-orchestrator/
-├── .github/workflows/    # GitHub Actions - automatsko pokretanje testova (vidi "CI/CD")
+├── .github/workflows/    # GitHub Actions - automatically runs the tests (see "CI/CD")
 │   └── tests.yml
-├── config.py             # Sve podesive vrednosti (margine, pragovi, opsezi, limiti) - jedno mesto
-├── virtual_ecu/          # "Sistem pod testom" - po jedan fajl po use case-u
-│   ├── aeb.py             #   AEB: brzina, prepreka -> brake ON/OFF
-│   ├── lka.py              #   LKA: lateralni ofset/brzina -> intervencija ON/OFF
-│   └── acc.py               #   ACC: razmak/brzina vozila ispred -> decelerate ON/OFF
-├── scenarios/            # Scenario Engine - generisanje test scenarija
-│   ├── schemas.py          #   Scenario (AEB), LKAScenario, ACCScenario dataclass-ovi
-│   └── generator.py        #   generatori za sva tri use case-a
-├── test_engine/          # Srce sistema - izvrsavanje, poredjenje, cuvanje rezultata
-│   ├── assertions.py       #   AEB expected/oracle (sa bezbednosnom marginom)
+├── config.py             # All tunable values (margins, thresholds, ranges, limits) - one place
+├── virtual_ecu/          # The "system under test" - one file per use case
+│   ├── aeb.py             #   AEB: speed, obstacle -> brake ON/OFF
+│   ├── lka.py              #   LKA: lateral offset/speed -> intervention ON/OFF
+│   └── acc.py               #   ACC: gap/speed of lead vehicle -> decelerate ON/OFF
+├── scenarios/            # Scenario Engine - test scenario generation
+│   ├── schemas.py          #   Scenario (AEB), LKAScenario, ACCScenario dataclasses
+│   └── generator.py        #   generators for all three use cases
+├── test_engine/          # The heart of the system - execution, comparison, saving results
+│   ├── assertions.py       #   AEB expected/oracle (with safety margin)
 │   ├── runner.py            #   AEB TestEngine
 │   ├── lka_assertions.py    #   LKA expected/oracle
 │   ├── lka_runner.py        #   LKA TestEngine
 │   ├── acc_assertions.py    #   ACC expected/oracle
 │   ├── acc_runner.py        #   ACC TestEngine
-│   └── results.py           #   zajednicko: summarize/save (radi za sva tri use case-a)
-├── analytics/             # Failure Analysis - grupisanje failure-a po obrascima
+│   └── results.py           #   shared: summarize/save (works for all three use cases)
+├── analytics/             # Failure Analysis - grouping failures by pattern
 │   ├── failures.py          #   AEB
 │   ├── lka_failures.py      #   LKA
 │   └── acc_failures.py      #   ACC
-├── api/                    # FastAPI - izlaze test engine kroz HTTP za dashboard
-│   └── main.py               #   /api/run + /api/lka/run + /api/acc/run (i /summary parnjaci)
-├── dashboard/                # Web UI (jedan HTML fajl, bez build koraka)
-│   └── index.html             #   AEB/LKA/ACC tabovi, config-driven tabela kolona
-├── tests/                  # pytest testovi (unit + integracioni), po use case-u
-├── results/                # Ovde se cuvaju JSON rezultati svakog pokretanja
-├── main.py                 # CLI ulazna tacka (--usecase aeb|lka|acc)
+├── api/                    # FastAPI - exposes the test engine over HTTP for the dashboard
+│   └── main.py               #   /api/run + /api/lka/run + /api/acc/run (and their /summary counterparts)
+├── dashboard/                # Web UI (a single HTML file, no build step)
+│   └── index.html             #   AEB/LKA/ACC tabs, config-driven table columns
+├── tests/                  # pytest tests (unit + integration), per use case
+├── results/                # JSON results from each run are saved here
+├── main.py                 # CLI entry point (--usecase aeb|lka|acc)
 └── requirements.txt
 ```
 
-## Instalacija (Windows)
+## Installation (Windows)
 
-Otvori terminal (PowerShell ili cmd) u ovom folderu i pokreni:
+Open a terminal (PowerShell or cmd) in this folder and run:
 
 ```
 python -m venv venv
@@ -64,13 +67,13 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Svaki put kad ponovo otvoris terminal za rad na projektu, prvo aktiviraj
-virtuelno okruzenje: `venv\Scripts\activate` (videces `(venv)` na pocetku
-linije kad je aktivno).
+Every time you reopen a terminal to work on the project, activate the
+virtual environment first: `venv\Scripts\activate` (you'll see `(venv)`
+at the start of the line when it's active).
 
-## Pokretanje (CLI)
+## Running (CLI)
 
-Pokreni ceo pipeline (generisanje scenarija -> testiranje -> izvestaj):
+Run the whole pipeline (generate scenarios -> test -> report):
 
 ```
 python main.py
@@ -78,212 +81,243 @@ python main.py --usecase lka
 python main.py --usecase acc
 ```
 
-Podrazumevano (`--usecase aeb`) generise 1000 nasumicnih scenarija + 4
-rucno definisana granicna slucaja, i cuva detaljne rezultate u
-`results/latest_aeb_run.json` (odnosno `latest_lka_run.json` /
-`latest_acc_run.json` za druga dva use case-a - svaki use case ima svoju
-podrazumevanu putanju, da run jednog ne prepise rezultate drugog).
+By default (`--usecase aeb`) it generates 1000 random scenarios + 4
+manually defined edge cases, and saves detailed results to
+`results/latest_aeb_run.json` (or `latest_lka_run.json` /
+`latest_acc_run.json` for the other two use cases - each use case has its
+own default path, so running one doesn't overwrite another's results).
 
-Opcije:
+Options:
 
 ```
 python main.py --usecase lka --count 5000 --seed 123 --out results/run2.json
 ```
 
-- `--usecase` - `aeb` (podrazumevano), `lka` ili `acc`
-- `--count` - broj nasumicno generisanih scenarija (podrazumevano 1000)
-- `--seed` - seed za reproduktivnost (isti seed = isti scenariji)
-- `--out` - putanja gde se cuva JSON sa rezultatima (podrazumevano
+- `--usecase` - `aeb` (default), `lka`, or `acc`
+- `--count` - number of randomly generated scenarios (default 1000)
+- `--seed` - seed for reproducibility (same seed = same scenarios)
+- `--out` - path where the results JSON is saved (default
   `results/latest_<usecase>_run.json`)
 
 ## Dashboard (web UI)
 
-Umesto (ili pored) terminala, mozes da pokreces test run-ove i gledas
-rezultate u browseru:
+Instead of (or alongside) the terminal, you can run test runs and view
+results in a browser:
 
 ```
 uvicorn api.main:app --reload
 ```
 
-Zatim otvori **http://127.0.0.1:8000** u browseru. Dashboard ima:
+Then open **http://127.0.0.1:8000** in your browser. The dashboard has:
 
-- **tabove AEB / LKA / ACC** na vrhu - prebacuju izmedju use case-ova
-  (svaki ima svoj endpoint, svoje rezultate, svoje kolone u tabeli),
-- polje za broj scenarija i seed + dugme "Pokreni testove" (poziva test
-  engine preko `POST /api/run`, `POST /api/lka/run` ili `POST /api/acc/run`,
-  u zavisnosti od aktivnog taba, bez reload-a stranice),
-- rezime (ukupno / PASS / FAIL / pass rate),
-- failure pattern-e kao horizontalni bar prikaz,
-- tabelu neuspelih scenarija sa actual/expected vrednostima, paginiranu
-  (25 po strani) kad ih ima puno,
-- dugme "Preuzmi CSV" (skida SVE neuspele scenarije aktivnog use case-a
-  kao CSV fajl, ne samo trenutnu stranu tabele).
+- **AEB / LKA / ACC tabs** at the top - switch between use cases (each
+  has its own endpoint, its own results, its own table columns),
+- a field for the number of scenarios and the seed, plus a "Run tests"
+  button (calls the test engine via `POST /api/run`, `POST /api/lka/run`,
+  or `POST /api/acc/run`, depending on the active tab, without reloading
+  the page),
+- a summary (total / PASS / FAIL / pass rate),
+- **"Trend over time"** - a chart of pass rate across the last 30 runs
+  (a line + a table below it with the time, scenario count, seed, and
+  FAIL count per run; hovering over a point shows the details). Every
+  run - from the dashboard or the CLI (`main.py`) - adds one entry to
+  the history, so the trend builds up no matter where the tests were run
+  from,
+- failure patterns as a horizontal bar chart,
+- a table of failed scenarios with actual/expected values, paginated
+  (25 per page) when there are many,
+- a "Download CSV" button (downloads ALL failed scenarios for the active
+  use case as a CSV file, not just the current table page).
 
-Ako unesesh neispravan broj scenarija/seed (npr. prazno polje, broj van
-opsega 1-50000, decimalni broj) ili backend nije pokrenut, dashboard to
-prijavljuje jasnom porukom umesto da samo prestane da radi.
+If you enter an invalid number of scenarios/seed (e.g. an empty field, a
+number outside the 1-50000 range, a decimal number) or the backend isn't
+running, the dashboard reports it with a clear message instead of just
+breaking silently.
 
-`Ctrl+C` u terminalu gasi server. `--reload` znaci da ce se server sam
-restartovati kad izmenis `api/main.py` (korisno dok razvijas).
+`Ctrl+C` in the terminal stops the server. `--reload` means the server
+will restart itself when you change `api/main.py` (useful while developing).
 
-## Testovi
+### Run history (for the trend chart)
+
+Every test run (CLI or dashboard) writes one row to
+`results/history_<usecase>.jsonl` (e.g. `history_aeb.jsonl`,
+`history_lka.jsonl`, `history_acc.jsonl`) - JSON Lines format, one JSON
+record per line (`{timestamp, count, seed, total, passed, failed,
+pass_rate_pct, patterns}`). The file grows append-only (nothing is ever
+rewritten), so it's safe even if two runs overlap. The dashboard only
+reads the last `RUN_HISTORY_DISPLAY_LIMIT` entries (30 by default,
+configurable in `config.py`) via `/api/history`, `/api/lka/history`, and
+`/api/acc/history`, but the complete history stays on disk. If you want
+to reset the trend, just delete the corresponding `history_*.jsonl` file.
+
+## Tests
 
 ```
 pytest
 pytest -v
 ```
 
-Testovi pokrivaju sva tri use case-a: ECU logiku (rucno izracunati granicni
-slucajevi, nezavisno od `assertions.py`/`lka_assertions.py`/`acc_assertions.py`),
-scenario generatore, test engine-e i failure analitiku.
+The tests cover all three use cases: ECU logic (manually calculated edge
+cases, independent of `assertions.py`/`lka_assertions.py`/`acc_assertions.py`),
+scenario generators, test engines, and failure analytics.
 
 ## CI/CD (GitHub Actions)
 
-Projekat ima `.github/workflows/tests.yml` koji automatski pokrece
-`pytest -v` na GitHub-ovim serverima (Python 3.10/3.11/3.12) na svaki
-`push`/pull request, i moze se pokrenuti i rucno iz "Actions" taba na
-GitHub-u ("Run workflow"). Ovo ne zavisi ni od cega na tvom racunaru - CI
-ima svoje cisto okruzenje i svoj internet pristup, pa `pip install` tamo
-radi normalno.
+The project has `.github/workflows/tests.yml`, which automatically runs
+`pytest -v` on GitHub's servers (Python 3.10/3.11/3.12) on every
+`push`/pull request, and can also be run manually from the "Actions" tab
+on GitHub ("Run workflow"). This doesn't depend on anything on your own
+computer - CI has its own clean environment and its own internet access,
+so `pip install` works there normally.
 
-Da bi ovo pocelo da radi, projekat mora da bude git repozitorijum
-pushovan na GitHub (ako to jos nije uradjeno):
+For this to start working, the project needs to be a git repository
+pushed to GitHub (if that hasn't been done yet):
 
-1. Proveri da li je git instaliran: u terminalu, u folderu projekta,
-   pokreni `git --version` - ako ispise verziju, sve je spremno.
-2. Inicijalizuj repo (ako vec nije) i napravi prvi commit:
+1. Check whether git is installed: in a terminal, in the project folder,
+   run `git --version` - if it prints a version, you're all set.
+2. Initialize the repo (if it isn't already) and make the first commit:
    ```
    git init
    git add .
    git commit -m "Initial commit - AutoTest Orchestrator V1"
    ```
-   (`.gitignore` vec postoji i iskljucuje `venv/`, `__pycache__/`,
-   `.idea/` i `results/*.json`, pa se oni nece slucajno commit-ovati.)
-3. Na [github.com](https://github.com) napravi novi, **prazan**
-   repozitorijum (bez README/gitignore/license opcije - da ne bi bilo
-   konflikta sa vec postojecim fajlovima), npr. nazvan
+   (`.gitignore` already exists and excludes `venv/`, `__pycache__/`,
+   `.idea/`, and `results/*.json`, so they won't get committed by accident.)
+3. On [github.com](https://github.com), create a new, **empty**
+   repository (without the README/gitignore/license options - to avoid
+   conflicts with files that already exist locally), e.g. named
    `autotest-orchestrator`.
-4. Poveži lokalni repo sa GitHub-om i pushuj (GitHub ce ti odmah nakon
-   kreiranja repo-a i sam pokazati tacne komande za tvoj nalog, ali
-   obicno izgledaju ovako):
+4. Connect the local repo to GitHub and push (GitHub will show you the
+   exact commands right after creating the repo, but for the account
+   `nemanjaradosavljevic` and repo `autotest-orchestrator` they look like
+   this):
    ```
-   git remote add origin https://github.com/<tvoj-github-username>/autotest-orchestrator.git
+   git remote add origin https://github.com/nemanjaradosavljevic/autotest-orchestrator.git
    git branch -M main
    git push -u origin main
    ```
-5. Otvori tab **Actions** na GitHub-u - videces da se "Testovi" workflow
-   sam pokrenuo. Kad dobije zelenu kvacicu, CI radi.
+   (If you name the repo differently, just swap `autotest-orchestrator`
+   in the URL above and in the badge at the top of this README.)
+5. Open the **Actions** tab on GitHub - you'll see the "Tests" workflow
+   has already run on its own. Once it gets a green checkmark, CI is working.
 
-Od tog trenutka, svaki sledeci `git push` automatski pokrece sve testove
-na GitHub-u (ne na tvom racunaru) - ako nesto slucajno pokvaris, saznaces
-odmah kroz crveni "X" na commit-u, pre nego sto to sam primetis.
+From that point on, every subsequent `git push` automatically runs all
+the tests on GitHub (not on your own computer) - if you accidentally
+break something, you'll find out right away from a red "X" on the
+commit, before you'd notice it yourself.
 
-## Kako radi AEB logika
+## How the AEB logic works
 
-Za dati scenario (brzina, udaljenost prepreke, trenje puta, kasnjenje senzora),
-Virtual ECU racuna potrebnu udaljenost za zaustavljanje:
-
-```
-reakciona_udaljenost = brzina * (kasnjenje_senzora / 1000)
-kociona_udaljenost   = brzina^2 / (2 * trenje * 9.81)
-potrebna_udaljenost  = reakciona_udaljenost + kociona_udaljenost
-
-brake = ON  ako je udaljenost_do_prepreke <= potrebna_udaljenost
-brake = OFF inace
-```
-
-## Kako radi LKA logika
-
-Za dati scenario (lateralni ofset od centra trake, pola sirine trake,
-lateralna brzina priblizavanja ivici, da li vozac aktivno upravlja),
-Virtual ECU racuna "time to line crossing" (TTLC) - za koliko sekundi bi
-vozilo preslo ivicu trake ako se nista ne promeni:
+For a given scenario (speed, obstacle distance, road friction, sensor
+delay), the Virtual ECU calculates the required stopping distance:
 
 ```
-udaljenost_do_ivice = pola_sirine_trake - abs(lateralni_ofset)
+reaction_distance = speed * (sensor_delay / 1000)
+braking_distance   = speed^2 / (2 * friction * 9.81)
+stopping_distance  = reaction_distance + braking_distance
 
-ako je udaljenost_do_ivice <= 0:      TTLC = 0 (vec preko ivice)
-ako se vozilo ne priblizava ivici:    TTLC = nedefinisano (bezbedno)
-inace:                                TTLC = udaljenost_do_ivice / lateralna_brzina
-
-intervencija = ON  ako vozac NE upravlja aktivno I TTLC <= prag (1.0s)
-intervencija = OFF inace
+brake = ON  if obstacle_distance <= stopping_distance
+brake = OFF otherwise
 ```
 
-Isti obrazac kao AEB (prostorni/vremenski budzet naspram praga), samo
-primenjen na drugu automotive funkciju - to i jeste poenta ovog use case-a:
-pokazuje da Scenario Engine / Test Engine / Analytics sloj ne zna nista
-use-case-specificno, samo poziva ono sto mu se prosledi.
+## How the LKA logic works
 
-## Kako radi ACC logika
-
-Za dati scenario (moja brzina, brzina vozila ispred, trenutni razmak, da
-li vozac pritiska gas), Virtual ECU racuna zeljeni (bezbedni) razmak po
-"constant time headway" modelu - sto brze vozis, treba ti vise prostora,
-plus fiksni minimum koji vazi i pri stajanju:
+For a given scenario (lateral offset from the lane center, half the lane
+width, lateral speed toward the edge, whether the driver is actively
+steering), the Virtual ECU calculates the "time to line crossing" (TTLC)
+- how many seconds until the vehicle would cross the lane edge if nothing
+changes:
 
 ```
-zeljeni_razmak = MIN_GAP + moja_brzina * TIME_HEADWAY
+distance_to_edge = half_lane_width - abs(lateral_offset)
 
-decelerate = ON  ako je stvarni_razmak < zeljeni_razmak
-decelerate = OFF inace (ili ako vozac aktivno pritiska gas - override)
+if distance_to_edge <= 0:            TTLC = 0 (already past the edge)
+if the vehicle isn't drifting toward the edge:  TTLC = undefined (safe)
+otherwise:                           TTLC = distance_to_edge / lateral_speed
+
+intervene = ON  if the driver is NOT actively steering AND TTLC <= threshold (1.0s)
+intervene = OFF otherwise
 ```
 
-Treci use case, isti obrazac kao AEB/LKA (prostorni/vremenski budzet
-naspram praga, sa driver override-om kao kod LKA-e) - dodatna potvrda da
-arhitektura generalizuje.
+Same pattern as AEB (a spatial/time budget against a threshold), just
+applied to a different automotive function - that's the whole point of
+this use case: it shows that the Scenario Engine / Test Engine /
+Analytics layer knows nothing use-case-specific, it just calls whatever
+it's given.
 
-## Vazna napomena o "expected vs actual" (zasto uopste ima FAIL-ova)
+## How the ACC logic works
 
-`virtual_ecu/aeb.py`, `virtual_ecu/lka.py` i `virtual_ecu/acc.py` (actual -
-sistemi pod testom) rade tacno na granici, bez rezerve.
-`test_engine/assertions.py`, `test_engine/lka_assertions.py` i
-`test_engine/acc_assertions.py` (expected - specifikacija/oracle) su
-namerno strozi: zahtevaju `SAFETY_MARGIN = 1.15` (15% vise prostora kod
-AEB-a i ACC-a, 15% duzi vremenski prag kod LKA-e), jer je to realan
-bezbednosni zahtev (uslovi na putu, gume, senzorski sum nikad nisu
-savrseno poznati). Kada je scenario u tom "margin gap"-u, actual kaze "jos
-ne moram da reagujem", a expected kaze "trebalo je vec da reagujem" ->
-FAIL. To objasnjava zasto ces sa vecim brojem scenarija videti realan
-procenat FAIL-ova i popunjenu failure analizu, umesto 100% PASS.
+For a given scenario (my speed, lead vehicle's speed, current gap,
+whether the driver is pressing the throttle), the Virtual ECU calculates
+the desired (safe) gap using a "constant time headway" model - the faster
+you're driving, the more space you need, plus a fixed minimum that
+applies even at a standstill:
 
-Ovo NIJE vestacki ubaceni bug - to je stvaran, tipican nalaz koji bi test
-inzenjer trazio: "sistem tehnicki radi, ali nema dovoljno bezbednosne
-rezerve." Prava (nezavisna) regresiona zastita za samu fiziku/logiku
-dolazi iz `tests/test_aeb.py`, `tests/test_lka.py` i `tests/test_acc.py`,
-gde su ocekivane vrednosti rucno izracunate i ne zavise od
+```
+desired_gap = MIN_GAP + my_speed * TIME_HEADWAY
+
+decelerate = ON  if actual_gap < desired_gap
+decelerate = OFF otherwise (or if the driver is actively pressing the throttle - override)
+```
+
+The third use case, same pattern as AEB/LKA (a spatial/time budget
+against a threshold, with a driver override like in LKA) - further
+confirmation that the architecture generalizes.
+
+## An important note on "expected vs actual" (why there are any FAILs at all)
+
+`virtual_ecu/aeb.py`, `virtual_ecu/lka.py`, and `virtual_ecu/acc.py`
+(actual - the systems under test) work right at the edge, with no margin.
+`test_engine/assertions.py`, `test_engine/lka_assertions.py`, and
+`test_engine/acc_assertions.py` (expected - the spec/oracle) are
+deliberately stricter: they require `SAFETY_MARGIN = 1.15` (15% more
+space for AEB and ACC, a 15% longer time threshold for LKA), because
+that's a realistic safety requirement (road conditions, tires, and
+sensor noise are never perfectly known). When a scenario falls in that
+"margin gap", actual says "I don't need to react yet", while expected
+says "it should have already reacted" -> FAIL. That's why, with a larger
+number of scenarios, you'll see a realistic FAIL percentage and a
+populated failure analysis, instead of 100% PASS.
+
+This is NOT an artificially inserted bug - it's a genuine, typical
+finding a test engineer would look for: "the system technically works,
+but doesn't have enough safety margin." The real (independent) regression
+protection for the physics/logic itself comes from `tests/test_aeb.py`,
+`tests/test_lka.py`, and `tests/test_acc.py`, where the expected values
+are calculated by hand and don't depend on
 `assertions.py`/`lka_assertions.py`/`acc_assertions.py`.
 
-Kada se u V2/V3 doda pravi STM32/CAN ECU ili integracija sa CANoe/dSPACE,
-`assertions.py`/`lka_assertions.py`/`acc_assertions.py` ostaju "expected"
-strana poredjenja, a "actual" dolazi sa stvarnog uredjaja - razdvajanje
-tada pocinje da hvata i prave razlike u firmveru, zaokruzivanjima i
-kasnjenjima, pored margine.
+When a real STM32/CAN ECU or a CANoe/dSPACE integration is added in
+V2/V3, `assertions.py`/`lka_assertions.py`/`acc_assertions.py` stay the
+"expected" side of the comparison, while "actual" comes from the real
+device - the separation then starts catching real differences in
+firmware, rounding, and timing too, on top of the margin.
 
-## Podesavanje (config.py)
+## Configuration (config.py)
 
-Sve "brojke koje bi neko mogao pozeleti da promeni" - bezbednosne margine
-(`AEB_SAFETY_MARGIN`, `LKA_SAFETY_MARGIN`, `ACC_SAFETY_MARGIN`), pragovi za
-odluke (`LKA_TTLC_THRESHOLD_S`, `ACC_MIN_GAP_M`, `ACC_TIME_HEADWAY_S`),
-opsezi za nasumicno generisanje scenarija (`AEB_SCENARIO_RANGES`,
-`LKA_SCENARIO_RANGES`, `ACC_SCENARIO_RANGES`), pragovi za failure analitiku
-i gornja granica broja scenarija po run-u (`MAX_SCENARIO_COUNT`) - zive na
-jednom mestu, u `config.py` u root folderu projekta. Ne treba pretrazivati
-vise fajlova da bi se npr. AEB ucinio konzervativnijim - dovoljno je
-promeniti `AEB_SAFETY_MARGIN` u `config.py`.
+Every "number someone might want to tweak" - safety margins
+(`AEB_SAFETY_MARGIN`, `LKA_SAFETY_MARGIN`, `ACC_SAFETY_MARGIN`), decision
+thresholds (`LKA_TTLC_THRESHOLD_S`, `ACC_MIN_GAP_M`,
+`ACC_TIME_HEADWAY_S`), ranges for randomly generating scenarios
+(`AEB_SCENARIO_RANGES`, `LKA_SCENARIO_RANGES`, `ACC_SCENARIO_RANGES`),
+thresholds for the failure analytics, and the upper limit on the number
+of scenarios per run (`MAX_SCENARIO_COUNT`) - all live in one place, in
+`config.py` in the project's root folder. There's no need to search
+through multiple files to, say, make AEB more conservative - it's enough
+to change `AEB_SAFETY_MARGIN` in `config.py`.
 
-Izuzetak je `dashboard/index.html` (`<input max="50000">` i
-`MAX_SCENARIO_COUNT` u JS delu) - to je staticki HTML fajl bez build
-koraka, pa te dve vrednosti treba rucno drzati u skladu sa
-`config.MAX_SCENARIO_COUNT` ako se ona promeni.
+The exception is `dashboard/index.html` (`<input max="50000">` and
+`MAX_SCENARIO_COUNT` in the JS part) - it's a static HTML file with no
+build step, so those two values need to be kept manually in sync with
+`config.MAX_SCENARIO_COUNT` if it changes.
 
-## Sta je sledece (sledece faze iz roadmap-a)
+## What's next (upcoming phases from the roadmap)
 
-1. Jos use case-ova, po istom obrascu (npr. Forward Collision Warning,
-   Blind Spot Detection).
-2. CAN komunikacija i STM32 kao fizicki ECU (V2) - ceka se prakticno
-   embedded znanje/hardver.
-3. Integracija sa CANoe/dSPACE/ECU-TEST (V3).
+1. More use cases, following the same pattern (e.g. Forward Collision
+   Warning, Blind Spot Detection).
+2. CAN communication and an STM32 as the physical ECU (V2) - waiting on
+   practical embedded knowledge/hardware.
+3. Integration with CANoe/dSPACE/ECU-TEST (V3).
 
-Radni princip iz projektnog plana: **uci -> napravi -> testiraj -> pokazi
-korisniku -> validiraj -> prosiri.**
+Working principle from the project plan: **learn -> build -> test -> show
+the user -> validate -> expand.**

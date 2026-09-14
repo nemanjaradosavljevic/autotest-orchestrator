@@ -1,6 +1,7 @@
 """
-Test Engine - srce V1 prototipa. Ucitava scenario, pokrece Virtual ECU,
-poredi expected vs actual i vraca PASS/FAIL rezultat po scenariju.
+Test Engine - the heart of the V1 prototype. Loads a scenario, runs the
+Virtual ECU, compares expected vs actual, and returns a PASS/FAIL result
+per scenario.
 """
 
 from dataclasses import dataclass, asdict

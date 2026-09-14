@@ -1,8 +1,8 @@
 """
-Scenario Engine - generise veliki broj test scenarija iz opsega parametara
-(poglavlje "Scenario Engine" u projektnom planu). Sadrzi generatore za sva
-tri use case-a: AEB (kocenje), LKA (drzanje trake) i ACC (odrzavanje
-razmaka).
+Scenario Engine - generates a large number of test scenarios from parameter
+ranges (the "Scenario Engine" chapter in the project plan). Contains
+generators for all three use cases: AEB (braking), LKA (lane keeping) and
+ACC (gap maintenance).
 """
 
 import random
@@ -14,13 +14,13 @@ from config import AEB_WEATHER_FRICTION_ADJUSTMENT as WEATHER_FRICTION_ADJUSTMEN
 from config import LKA_SCENARIO_RANGES as LKA_RANGES
 from scenarios.schemas import ACCScenario, LKAScenario, Scenario
 
-# Napomena: opsezi (DEFAULT_RANGES/LKA_RANGES/ACC_RANGES) i podesavanje
-# trenja za kisu (WEATHER_FRICTION_ADJUSTMENT) sada zive u config.py; ovde
-# su samo aliasi da postojeci kod/testovi ne moraju da se menjaju.
+# Note: the ranges (DEFAULT_RANGES/LKA_RANGES/ACC_RANGES) and the friction
+# adjustment for rain (WEATHER_FRICTION_ADJUSTMENT) now live in config.py;
+# these are just aliases so existing code/tests don't have to change.
 
 
 def generate_random_scenarios(count: int, seed: Optional[int] = None) -> List[Scenario]:
-    """Generise `count` slucajnih scenarija unutar definisanih opsega."""
+    """Generates `count` random scenarios within the defined ranges."""
     rng = random.Random(seed)
     scenarios = []
     for i in range(count):
@@ -44,16 +44,16 @@ def generate_random_scenarios(count: int, seed: Optional[int] = None) -> List[Sc
 
 def generate_edge_case_scenarios() -> List[Scenario]:
     """
-    Rucno definisani granicni scenariji, sa unapred izracunatim ocekivanim
-    ponasanjem (videti tests/test_aeb.py). Korisni kao regresioni testovi
-    koji ne zavise od nasumicnog generatora.
+    Manually defined edge-case scenarios, with precomputed expected
+    behavior (see tests/test_aeb.py). Useful as regression tests that
+    don't depend on the random generator.
     """
     # (speed_kmh, obstacle_distance_m, weather, road_friction, sensor_delay_ms)
     presets = [
-        (80, 20, "rain", 0.6, 100),    # primer iz projektnog dokumenta -> BRAKE ON
-        (130, 100, "dry", 1.0, 0),     # velika brzina, dovoljno prostora -> BRAKE OFF
-        (30, 2, "dry", 1.0, 0),        # mala brzina, ali vrlo blizu prepreke -> BRAKE ON
-        (130, 30, "rain", 0.4, 500),   # worst-case: brzo, kisa, spor senzor -> BRAKE ON
+        (80, 20, "rain", 0.6, 100),    # example from the project document -> BRAKE ON
+        (130, 100, "dry", 1.0, 0),     # high speed, enough room -> BRAKE OFF
+        (30, 2, "dry", 1.0, 0),        # low speed, but very close to obstacle -> BRAKE ON
+        (130, 30, "rain", 0.4, 500),   # worst-case: fast, rain, slow sensor -> BRAKE ON
     ]
     return [
         Scenario(
@@ -69,15 +69,15 @@ def generate_edge_case_scenarios() -> List[Scenario]:
 
 
 def generate_random_lka_scenarios(count: int, seed: Optional[int] = None) -> List[LKAScenario]:
-    """Generise `count` slucajnih LKA scenarija."""
+    """Generates `count` random LKA scenarios."""
     rng = random.Random(seed)
     scenarios = []
     for i in range(count):
         lane_half_width = round(rng.uniform(*LKA_RANGES["lane_half_width_m"]), 2)
-        # Ofset drzimo uglavnom unutar trake, ponekad malo preko ivice -
-        # realno ponasanje: vozilo retko naglo "teleportuje" van trake.
+        # We keep the offset mostly within the lane, occasionally slightly past the
+        # edge - realistic behavior: a vehicle rarely "teleports" abruptly out of the lane.
         lateral_offset = round(rng.uniform(0, lane_half_width * 1.05), 3)
-        # 15% scenarija ima vozaca koji aktivno upravlja (sistem se ne mesa).
+        # 15% of scenarios have a driver who is actively steering (the system doesn't intervene).
         driver_active = rng.random() < 0.15
 
         scenarios.append(
@@ -95,15 +95,15 @@ def generate_random_lka_scenarios(count: int, seed: Optional[int] = None) -> Lis
 
 def generate_edge_case_lka_scenarios() -> List[LKAScenario]:
     """
-    Rucno definisani granicni LKA scenariji, sa unapred izracunatim
-    ocekivanim ponasanjem (videti tests/test_lka.py).
+    Manually defined edge-case LKA scenarios, with precomputed expected
+    behavior (see tests/test_lka.py).
     """
     # (speed_kmh, lateral_offset_m, lane_half_width_m, lateral_velocity_m_s, driver_steering_active)
     presets = [
-        (100, 1.0, 1.75, 1.0, False),   # blizu ivice i priblizava se -> INTERVENE ON
-        (100, 0.0, 1.75, 0.0, False),   # centrirano, ne pomera se -> INTERVENE OFF
-        (100, 1.0, 1.75, 2.0, True),    # brzo se priblizava, ALI vozac aktivno upravlja -> OFF
-        (100, 1.8, 1.75, 1.0, False),   # vec preko ivice -> INTERVENE ON (odmah)
+        (100, 1.0, 1.75, 1.0, False),   # close to the edge and approaching it -> INTERVENE ON
+        (100, 0.0, 1.75, 0.0, False),   # centered, not moving -> INTERVENE OFF
+        (100, 1.0, 1.75, 2.0, True),    # approaching fast, BUT the driver is actively steering -> OFF
+        (100, 1.8, 1.75, 1.0, False),   # already past the edge -> INTERVENE ON (immediately)
     ]
     return [
         LKAScenario(
@@ -119,14 +119,14 @@ def generate_edge_case_lka_scenarios() -> List[LKAScenario]:
 
 
 def generate_random_acc_scenarios(count: int, seed: Optional[int] = None) -> List[ACCScenario]:
-    """Generise `count` slucajnih ACC scenarija."""
+    """Generates `count` random ACC scenarios."""
     rng = random.Random(seed)
     scenarios = []
     for i in range(count):
         ego_speed = round(rng.uniform(*ACC_RANGES["ego_speed_kmh"]), 1)
         lead_speed = round(rng.uniform(*ACC_RANGES["lead_speed_kmh"]), 1)
         gap_distance = round(rng.uniform(*ACC_RANGES["gap_distance_m"]), 1)
-        # 10% scenarija ima vozaca koji pritiska gas (override ACC usporavanja).
+        # 10% of scenarios have a driver pressing the accelerator (overriding ACC deceleration).
         driver_override = rng.random() < 0.10
 
         scenarios.append(
@@ -143,15 +143,15 @@ def generate_random_acc_scenarios(count: int, seed: Optional[int] = None) -> Lis
 
 def generate_edge_case_acc_scenarios() -> List[ACCScenario]:
     """
-    Rucno definisani granicni ACC scenariji, sa unapred izracunatim
-    ocekivanim ponasanjem (videti tests/test_acc.py).
+    Manually defined edge-case ACC scenarios, with precomputed expected
+    behavior (see tests/test_acc.py).
     """
     # (ego_speed_kmh, lead_speed_kmh, gap_distance_m, driver_override_active)
     presets = [
-        (100, 80, 30, False),   # razmak manji od zeljenog -> DECELERATE ON
-        (100, 80, 60, False),   # razmak veci od zeljenog -> DECELERATE OFF
-        (100, 80, 15, True),    # trebalo bi da uspori, ali vozac na gasu -> OFF
-        (0, 0, 3, False),       # stajanje, razmak manji od minimuma -> DECELERATE ON
+        (100, 80, 30, False),   # gap smaller than desired -> DECELERATE ON
+        (100, 80, 60, False),   # gap larger than desired -> DECELERATE OFF
+        (100, 80, 15, True),    # should decelerate, but driver is on the accelerator -> OFF
+        (0, 0, 3, False),       # standing still, gap smaller than the minimum -> DECELERATE ON
     ]
     return [
         ACCScenario(

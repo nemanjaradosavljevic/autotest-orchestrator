@@ -1,6 +1,6 @@
 """
-Unit testovi za LKA Virtual ECU, sa rucno izracunatim ocekivanim
-vrednostima - isti princip kao tests/test_aeb.py.
+Unit tests for the LKA Virtual ECU, with manually calculated expected
+values - the same approach as tests/test_aeb.py.
 """
 
 import pytest
@@ -9,7 +9,7 @@ from virtual_ecu.lka import LKAVirtualECU
 
 
 def test_intervene_on_near_edge_approaching():
-    """Blizu ivice (0.75m preostalo) i priblizava se brzinom 1 m/s -> TTLC 0.75s -> ON."""
+    """Near the edge (0.75m remaining) and approaching at 1 m/s -> TTLC 0.75s -> ON."""
     ecu = LKAVirtualECU()
     r = ecu.process(
         vehicle_speed_kmh=100,
@@ -36,7 +36,7 @@ def test_intervene_off_when_centered_and_still():
 
 
 def test_driver_override_suppresses_intervention():
-    """Cak i kad bi sistem inace intervenisao, aktivno upravljanje vozaca to sprecava."""
+    """Even when the system would otherwise intervene, the driver actively steering prevents it."""
     ecu = LKAVirtualECU()
     r = ecu.process(
         vehicle_speed_kmh=100,
@@ -62,7 +62,7 @@ def test_intervene_on_immediately_when_already_past_edge():
 
 
 def test_moving_back_toward_center_never_intervenes():
-    """Negativna lateralna brzina = vraca se ka centru - nema potrebe za intervencijom."""
+    """Negative lateral velocity = moving back toward center - no need for intervention."""
     ecu = LKAVirtualECU()
     r = ecu.process(
         vehicle_speed_kmh=100,

@@ -1,8 +1,8 @@
 """
-Unit testovi za Virtual ECU (AEB logiku), sa rucno izracunatim ocekivanim
-vrednostima - nezavisno od test_engine/assertions.py. Ovo je prava
-regresiona zastita: ako neko slucajno pokvari formulu u aeb.py, ovi
-testovi ce pasti.
+Unit tests for the Virtual ECU (AEB logic), with manually calculated expected
+values - independent of test_engine/assertions.py. This is real
+regression protection: if someone accidentally breaks the formula in aeb.py,
+these tests will fail.
 """
 
 import pytest
@@ -11,7 +11,7 @@ from virtual_ecu.aeb import AEBVirtualECU
 
 
 def test_brake_on_example_from_project_plan():
-    """Primer iz projektnog dokumenta: 80 km/h, 20m, trenje 0.6, delay 100ms -> BRAKE ON."""
+    """Example from the project document: 80 km/h, 20m, friction 0.6, delay 100ms -> BRAKE ON."""
     ecu = AEBVirtualECU()
     result = ecu.process(
         vehicle_speed_kmh=80,

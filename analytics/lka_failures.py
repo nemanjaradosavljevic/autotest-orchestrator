@@ -1,7 +1,7 @@
 """
-LKA Failure Analysis - grupise neuspesne LKA scenarije po prepoznatljivim
-obrascima. Isti obrazac kao analytics/failures.py (AEB), primenjen na LKA
-polja.
+LKA Failure Analysis - groups failed LKA scenarios into recognizable
+patterns. The same pattern as analytics/failures.py (AEB), applied to LKA
+fields.
 """
 
 from collections import defaultdict

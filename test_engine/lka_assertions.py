@@ -1,14 +1,14 @@
 """
-LKA Assertions - referentni ("oracle") proracun ocekivanog ponasanja za
-Lane Keep Assist, po istom principu kao test_engine/assertions.py za AEB:
-"expected" je namerno strozija (konzervativnija) verzija sistema, sa
-bezbednosnom marginom, dok "actual" (virtual_ecu/lka.py) intervenise tacno
-na granici.
+LKA Assertions - reference ("oracle") calculation of expected behavior for
+Lane Keep Assist, following the same principle as test_engine/assertions.py
+for AEB: "expected" is deliberately a stricter (more conservative) version
+of the system, with a safety margin, while "actual" (virtual_ecu/lka.py)
+intervenes exactly at the boundary.
 
-SAFETY_MARGIN ovde znaci: sistem treba da intervenise sa VISE vremena na
-raspolaganju (veci prag za vreme-do-prelaska-linije), ne manje - isti
-"prag pomeren u konzervativniju stranu" princip kao kod AEB-a, samo
-primenjen na vremenski umesto na prostorni prag.
+SAFETY_MARGIN here means: the system should intervene with MORE time to
+spare (a larger threshold for time-to-lane-crossing), not less - the same
+"threshold shifted to the more conservative side" principle as with AEB,
+just applied to a time threshold instead of a spatial one.
 """
 
 from dataclasses import dataclass

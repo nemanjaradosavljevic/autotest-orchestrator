@@ -1,8 +1,8 @@
 """
-Glavna ulazna tacka za V1 prototip: generise scenarije, pokrece ih kroz
-Virtual ECU, prikazuje PASS/FAIL izvestaj i failure analitiku.
+Main entry point for the V1 prototype: generates scenarios, runs them
+through the Virtual ECU, prints a PASS/FAIL report and failure analytics.
 
-Pokretanje:
+Usage:
     python main.py
     python main.py --usecase lka --count 5000 --seed 42
     python main.py --usecase acc --count 5000 --seed 42
@@ -24,8 +24,12 @@ from scenarios.generator import (
 )
 from test_engine.acc_runner import ACCTestEngine
 from test_engine.lka_runner import LKATestEngine
-from test_engine.results import save_results, summarize
+from test_engine.results import append_history_entry, save_results, summarize
 from test_engine.runner import TestEngine
+
+# Run history (for "Trend over time" in the dashboard) always goes here,
+# regardless of --out - so CLI and dashboard runs build the same trend together.
+HISTORY_DIR = "results"
 
 
 def run_aeb(count: int, seed: int, out: str) -> None:
@@ -34,6 +38,7 @@ def run_aeb(count: int, seed: int, out: str) -> None:
     summary = summarize(results)
     patterns = aeb_failure_pattern_summary(results)
     save_results(results, out)
+    append_history_entry(HISTORY_DIR, "aeb", count, seed, summary, patterns)
     print_report("AEB (Automatic Emergency Braking)", summary, patterns, out)
 
 
@@ -43,6 +48,7 @@ def run_lka(count: int, seed: int, out: str) -> None:
     summary = summarize(results)
     patterns = lka_failure_pattern_summary(results)
     save_results(results, out)
+    append_history_entry(HISTORY_DIR, "lka", count, seed, summary, patterns)
     print_report("LKA (Lane Keep Assist)", summary, patterns, out)
 
 
@@ -52,6 +58,7 @@ def run_acc(count: int, seed: int, out: str) -> None:
     summary = summarize(results)
     patterns = acc_failure_pattern_summary(results)
     save_results(results, out)
+    append_history_entry(HISTORY_DIR, "acc", count, seed, summary, patterns)
     print_report("ACC (Adaptive Cruise Control)", summary, patterns, out)
 
 
@@ -59,41 +66,41 @@ def print_report(title: str, summary: dict, patterns: dict, out: str) -> None:
     print("=" * 50)
     print(f"AUTOTEST ORCHESTRATOR - {title}")
     print("=" * 50)
-    print(f"Ukupno scenarija: {summary['total']}")
+    print(f"Total scenarios: {summary['total']}")
     print(f"PASS: {summary['passed']}")
     print(f"FAIL: {summary['failed']}")
     print(f"Pass rate: {summary['pass_rate_pct']}%")
     print()
     if patterns:
-        print("Failure pattern-i:")
+        print("Failure patterns:")
         for pattern, count in sorted(patterns.items(), key=lambda x: -x[1]):
             print(f"  - {pattern}: {count}")
     else:
-        print("Nema failure-a.")
+        print("No failures.")
     print()
-    print(f"Detaljni rezultati sacuvani u: {out}")
+    print(f"Detailed results saved to: {out}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="AutoTest Orchestrator - V1 prototip")
+    parser = argparse.ArgumentParser(description="AutoTest Orchestrator - V1 prototype")
     parser.add_argument(
         "--usecase",
         choices=["aeb", "lka", "acc"],
         default="aeb",
-        help="Koji use case pokrenuti (podrazumevano: aeb)",
+        help="Which use case to run (default: aeb)",
     )
-    parser.add_argument("--count", type=int, default=1000, help="Broj nasumicno generisanih scenarija")
-    parser.add_argument("--seed", type=int, default=42, help="Seed za reproduktivnost")
-    # Podrazumevana putanja zavisi od use case-a (results/latest_<usecase>_run.json), da run
-    # jednog use case-a bez --out ne prepise rezultate drugog. Ako je --out eksplicitno dat,
-    # koristi se tacno ta putanja, bez obzira na usecase.
+    parser.add_argument("--count", type=int, default=1000, help="Number of randomly generated scenarios")
+    parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility")
+    # The default path depends on the use case (results/latest_<usecase>_run.json), so
+    # running one use case without --out doesn't overwrite another's results. If --out
+    # is given explicitly, that exact path is used, regardless of usecase.
     parser.add_argument(
-        "--out", type=str, default=None, help="Putanja za cuvanje rezultata (podrazumevano: results/latest_<usecase>_run.json)"
+        "--out", type=str, default=None, help="Path to save results to (default: results/latest_<usecase>_run.json)"
     )
     args = parser.parse_args()
 
     if not (1 <= args.count <= MAX_SCENARIO_COUNT):
-        parser.error(f"--count mora biti izmedju 1 i {MAX_SCENARIO_COUNT} (dobijeno: {args.count})")
+        parser.error(f"--count must be between 1 and {MAX_SCENARIO_COUNT} (got: {args.count})")
 
     out = args.out or f"results/latest_{args.usecase}_run.json"
 

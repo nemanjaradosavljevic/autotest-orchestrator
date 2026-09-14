@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="sr">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -140,9 +140,10 @@
   }
   tbody tr:last-child td { border-bottom: none; }
   .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-  /* U ovoj tabeli su SAMO neuspeli scenariji, pa je "actual" uvek pogresna
-     (necekivana) odluka, a "expected" uvek zeljena/ispravna - zato boja
-     prati kolonu (ulogu), a ne samo ON/OFF vrednost. */
+  /* This table shows ONLY failed scenarios, so "actual" is always the wrong
+     (unexpected) decision and "expected" is always the desired/correct one -
+     that's why the color follows the column (its role), not just the
+     ON/OFF value. */
   .pill.actual { background: var(--critical-bg); color: var(--critical); }
   .pill.expected { background: var(--good-bg); color: var(--good); }
   .table-scroll { overflow-x: auto; }
@@ -162,6 +163,36 @@
   .page-btn:disabled { opacity: .4; cursor: default; }
   .page-info { font-size: 12.5px; color: var(--text-secondary); }
 
+  .trend-wrap { position: relative; }
+  .trend-svg { width: 100%; height: 160px; display: block; overflow: visible; }
+  .trend-line { fill: none; stroke: var(--sequential); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .trend-area { fill: var(--sequential); opacity: .10; pointer-events: none; }
+  .trend-grid { stroke: var(--gridline); stroke-width: 1; }
+  .trend-axis-label { fill: var(--text-muted); font-size: 9.5px; pointer-events: none; }
+  .trend-dot { fill: var(--sequential); stroke: var(--surface); stroke-width: 2; pointer-events: none; }
+  .trend-hit { fill: transparent; cursor: pointer; }
+  .trend-hit:focus { outline: none; }
+  .trend-endlabel { fill: var(--text-primary); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
+  .trend-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.16);
+    transform: translate(-50%, -100%);
+    margin-top: -10px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity .1s;
+    z-index: 5;
+  }
+  .trend-tooltip.visible { opacity: 1; }
+  .trend-tooltip .trend-tooltip-value { font-size: 15px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .trend-tooltip .trend-tooltip-meta { color: var(--text-secondary); margin-top: 2px; }
+
   .tabs { display: flex; gap: 6px; margin-bottom: 20px; }
   .tab-btn {
     padding: 8px 16px;
@@ -179,34 +210,34 @@
 <body>
 <div class="wrap">
   <h1>AutoTest Orchestrator</h1>
-  <p class="subtitle" id="subtitle">AEB Virtual ECU - V1 prototip - pregled test run-ova</p>
+  <p class="subtitle" id="subtitle">AEB Virtual ECU - V1 prototype - test run overview</p>
 
   <div class="tabs" id="tabs">
-    <button class="tab-btn active" data-usecase="aeb">AEB (kocenje)</button>
-    <button class="tab-btn" data-usecase="lka">LKA (drzanje trake)</button>
-    <button class="tab-btn" data-usecase="acc">ACC (odrzavanje razmaka)</button>
+    <button class="tab-btn active" data-usecase="aeb">AEB (braking)</button>
+    <button class="tab-btn" data-usecase="lka">LKA (lane keeping)</button>
+    <button class="tab-btn" data-usecase="acc">ACC (gap control)</button>
   </div>
 
   <div class="panel">
-    <h2>Pokreni test run</h2>
+    <h2>Run a test run</h2>
     <div class="controls">
       <div class="field">
-        <label for="countInput">Broj scenarija</label>
+        <label for="countInput">Number of scenarios</label>
         <input id="countInput" type="number" min="1" max="50000" value="1000" />
       </div>
       <div class="field">
         <label for="seedInput">Seed</label>
         <input id="seedInput" type="number" value="42" />
       </div>
-      <button id="runBtn">Pokreni testove</button>
+      <button id="runBtn">Run tests</button>
     </div>
     <div id="statusLine" class="status-line"></div>
   </div>
 
   <div class="panel">
-    <h2>Rezime</h2>
+    <h2>Summary</h2>
     <div class="kpi-row" id="kpiRow">
-      <div class="kpi"><div class="label">Ukupno</div><div class="value" id="kpiTotal">-</div></div>
+      <div class="kpi"><div class="label">Total</div><div class="value" id="kpiTotal">-</div></div>
       <div class="kpi good"><div class="label">PASS</div><div class="value" id="kpiPassed">-</div></div>
       <div class="kpi critical"><div class="label">FAIL</div><div class="value" id="kpiFailed">-</div></div>
       <div class="kpi"><div class="label">Pass rate</div><div class="value" id="kpiRate">-</div></div>
@@ -214,126 +245,145 @@
   </div>
 
   <div class="panel">
-    <h2>Failure pattern-i</h2>
-    <div id="patternsBox"><p class="empty">Nema jos podataka - pokreni test run.</p></div>
+    <h2>Trend over time</h2>
+    <div class="trend-wrap" id="trendChartWrap" style="display:none">
+      <svg class="trend-svg" id="trendSvg" viewBox="0 0 720 160" preserveAspectRatio="none"></svg>
+      <div class="trend-tooltip" id="trendTooltip"></div>
+    </div>
+    <p class="empty" id="trendEmpty">No history yet - at least two test runs (started here or via the CLI) are needed to see a trend.</p>
+    <div class="table-scroll" id="trendTableWrap" style="display:none; margin-top:14px;">
+      <table id="trendTable">
+        <thead><tr><th>When</th><th>Scenario count</th><th>Seed</th><th>Pass rate</th><th>FAIL</th></tr></thead>
+        <tbody id="trendTableBody"></tbody>
+      </table>
+    </div>
+    <p class="table-note" id="trendNote"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Failure Patterns</h2>
+    <div id="patternsBox"><p class="empty">No data yet - run a test.</p></div>
   </div>
 
   <div class="panel">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h2 style="margin:0;">Neuspeli scenariji</h2>
-      <button class="page-btn" id="downloadCsvBtn" style="display:none">Preuzmi CSV</button>
+      <h2 style="margin:0;">Failed Scenarios</h2>
+      <button class="page-btn" id="downloadCsvBtn" style="display:none">Download CSV</button>
     </div>
     <p class="table-note" style="margin-top:-8px; margin-bottom: 14px;">
-      "Actual" je sta je ECU stvarno uradio (crveno - to je razlog zasto je scenario pao),
-      "Expected" je sta je specifikacija (sa bezbednosnom marginom) zahtevala (zeleno).
+      "Actual" is what the ECU actually did (red - the reason the scenario failed),
+      "Expected" is what the spec (with the safety margin) required (green).
     </p>
     <div class="table-scroll">
       <table id="failuresTable" style="display:none">
         <thead><tr id="failuresHeadRow"></tr></thead>
         <tbody id="failuresBody"></tbody>
       </table>
-      <p class="empty" id="failuresEmpty">Nema jos podataka - pokreni test run.</p>
+      <p class="empty" id="failuresEmpty">No data yet - run a test.</p>
     </div>
     <div class="pagination" id="pagination" style="display:none">
-      <button class="page-btn" id="prevPageBtn">&larr; Prethodna</button>
+      <button class="page-btn" id="prevPageBtn">&larr; Previous</button>
       <span class="page-info" id="pageInfo"></span>
-      <button class="page-btn" id="nextPageBtn">Sledeca &rarr;</button>
+      <button class="page-btn" id="nextPageBtn">Next &rarr;</button>
     </div>
     <p class="table-note" id="failuresNote"></p>
   </div>
 </div>
 
 <script>
-// Svaki use case je samo konfiguracija: koje endpoint-e da zove, kako da
-// prevede failure pattern kljuceve u citljiv tekst, i koje kolone da
-// prikaze u tabeli neuspelih scenarija. Dodavanje treceg use case-a
-// (npr. kasnije neki jos jedan) znaci samo novi unos ovde - renderovanje
-// ispod ne zna nista use-case-specificno.
+// Each use case is just configuration: which endpoints to call, how to
+// translate failure pattern keys into readable text, and which columns to
+// show in the failed-scenarios table. Adding a third use case (or another
+// one later) just means a new entry here - the rendering below doesn't
+// know anything use-case-specific.
 function fmtNum(v) { return v === null || v === undefined ? "-" : v; }
 
 const USECASES = {
   aeb: {
-    label: "AEB (kocenje)",
-    subtitle: "AEB Virtual ECU - V1 prototip - pregled test run-ova",
+    label: "AEB (braking)",
+    subtitle: "AEB Virtual ECU - V1 prototype - test run overview",
     runUrl: "/api/run",
     summaryUrl: "/api/summary",
+    historyUrl: "/api/history",
     patternLabels: {
-      safety_margin_edge_case: "Bezbednosna margina (edge-case)",
-      high_speed_wet_road: "Velika brzina + kisa",
-      low_distance_high_speed: "Mala udaljenost + velika brzina",
-      high_sensor_delay: "Sporo reagovanje senzora",
+      safety_margin_edge_case: "Safety margin (edge case)",
+      high_speed_wet_road: "High speed + rain",
+      low_distance_high_speed: "Short distance + high speed",
+      high_sensor_delay: "Slow sensor response",
     },
     columns: [
       { header: "ID", cell: (f) => f.id },
-      { header: "Brzina (km/h)", cell: (f) => f.vehicle_speed_kmh },
-      { header: "Udaljenost (m)", cell: (f) => f.obstacle_distance_m },
-      { header: "Vreme", cell: (f) => (f.weather === "rain" ? "kisa" : "suvo") },
-      { header: "Trenje", cell: (f) => f.road_friction },
-      { header: "Senzor delay (ms)", cell: (f) => f.sensor_delay_ms },
+      { header: "Speed (km/h)", cell: (f) => f.vehicle_speed_kmh },
+      { header: "Distance (m)", cell: (f) => f.obstacle_distance_m },
+      { header: "Weather", cell: (f) => (f.weather === "rain" ? "rain" : "dry") },
+      { header: "Friction", cell: (f) => f.road_friction },
+      { header: "Sensor delay (ms)", cell: (f) => f.sensor_delay_ms },
       { header: "Actual", cell: (f) => `<span class="pill actual">${f.actual_brake ? "ON" : "OFF"}</span>` },
       { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_brake ? "ON" : "OFF"}</span>` },
       { header: "Actual stop (m)", cell: (f) => f.actual_stopping_distance_m },
-      { header: "Potrebno sa marginom (m)", cell: (f) => f.required_distance_with_margin_m },
+      { header: "Required with margin (m)", cell: (f) => f.required_distance_with_margin_m },
     ],
   },
   lka: {
-    label: "LKA (drzanje trake)",
-    subtitle: "LKA Virtual ECU - V1 prototip - pregled test run-ova",
+    label: "LKA (lane keeping)",
+    subtitle: "LKA Virtual ECU - V1 prototype - test run overview",
     runUrl: "/api/lka/run",
     summaryUrl: "/api/lka/summary",
+    historyUrl: "/api/lka/history",
     patternLabels: {
-      safety_margin_edge_case: "Bezbednosna margina (edge-case)",
-      fast_drift: "Brzo priblizavanje ivici",
-      high_speed_fast_drift: "Velika brzina + brzo priblizavanje",
+      safety_margin_edge_case: "Safety margin (edge case)",
+      fast_drift: "Fast drift toward edge",
+      high_speed_fast_drift: "High speed + fast drift",
     },
     columns: [
       { header: "ID", cell: (f) => f.id },
-      { header: "Brzina (km/h)", cell: (f) => f.vehicle_speed_kmh },
-      { header: "Lateral ofset (m)", cell: (f) => f.lateral_offset_m },
-      { header: "Pola sirine trake (m)", cell: (f) => f.lane_half_width_m },
-      { header: "Lateral brzina (m/s)", cell: (f) => f.lateral_velocity_m_s },
-      { header: "Vozac upravlja", cell: (f) => (f.driver_steering_active ? "da" : "ne") },
+      { header: "Speed (km/h)", cell: (f) => f.vehicle_speed_kmh },
+      { header: "Lateral offset (m)", cell: (f) => f.lateral_offset_m },
+      { header: "Half lane width (m)", cell: (f) => f.lane_half_width_m },
+      { header: "Lateral speed (m/s)", cell: (f) => f.lateral_velocity_m_s },
+      { header: "Driver steering", cell: (f) => (f.driver_steering_active ? "yes" : "no") },
       { header: "Actual", cell: (f) => `<span class="pill actual">${f.actual_intervene ? "ON" : "OFF"}</span>` },
       { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_intervene ? "ON" : "OFF"}</span>` },
       { header: "Actual TTLC (s)", cell: (f) => fmtNum(f.actual_ttlc_s) },
-      { header: "Expected TTLC sa marginom (s)", cell: (f) => fmtNum(f.expected_ttlc_s) },
+      { header: "Expected TTLC with margin (s)", cell: (f) => fmtNum(f.expected_ttlc_s) },
     ],
   },
   acc: {
-    label: "ACC (odrzavanje razmaka)",
-    subtitle: "ACC Virtual ECU - V1 prototip - pregled test run-ova",
+    label: "ACC (gap control)",
+    subtitle: "ACC Virtual ECU - V1 prototype - test run overview",
     runUrl: "/api/acc/run",
     summaryUrl: "/api/acc/summary",
+    historyUrl: "/api/acc/history",
     patternLabels: {
-      safety_margin_edge_case: "Bezbednosna margina (edge-case)",
-      fast_closing: "Brzo priblizavanje vozilu ispred",
-      high_speed_fast_closing: "Velika brzina + brzo priblizavanje",
+      safety_margin_edge_case: "Safety margin (edge case)",
+      fast_closing: "Fast closing on lead vehicle",
+      high_speed_fast_closing: "High speed + fast closing",
     },
     columns: [
       { header: "ID", cell: (f) => f.id },
-      { header: "Moja brzina (km/h)", cell: (f) => f.ego_speed_kmh },
-      { header: "Brzina vozila ispred (km/h)", cell: (f) => f.lead_speed_kmh },
-      { header: "Razmak (m)", cell: (f) => f.gap_distance_m },
-      { header: "Vozac na gasu", cell: (f) => (f.driver_override_active ? "da" : "ne") },
+      { header: "Ego speed (km/h)", cell: (f) => f.ego_speed_kmh },
+      { header: "Lead vehicle speed (km/h)", cell: (f) => f.lead_speed_kmh },
+      { header: "Gap (m)", cell: (f) => f.gap_distance_m },
+      { header: "Driver on throttle", cell: (f) => (f.driver_override_active ? "yes" : "no") },
       { header: "Actual", cell: (f) => `<span class="pill actual">${f.actual_decelerate ? "ON" : "OFF"}</span>` },
       { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_decelerate ? "ON" : "OFF"}</span>` },
-      { header: "Zeljeni razmak (m)", cell: (f) => f.actual_desired_gap_m },
-      { header: "Potrebno sa marginom (m)", cell: (f) => f.expected_desired_gap_with_margin_m },
+      { header: "Desired gap (m)", cell: (f) => f.actual_desired_gap_m },
+      { header: "Required with margin (m)", cell: (f) => f.expected_desired_gap_with_margin_m },
     ],
   },
 };
 
 let activeUsecase = "aeb";
 
-// Paginacija tabele neuspelih scenarija - API salje SVE failure-e, a ovde
-// ih delimo na stranice (25 po strani) da tabela ostane pregledna kad ih
-// ima puno.
+// Pagination for the failed-scenarios table - the API sends ALL failures,
+// and here we split them into pages (25 per page) so the table stays
+// readable when there are a lot of them.
 const PAGE_SIZE = 25;
 const failuresState = { rows: [], page: 1 };
 
-// Mora da odgovara config.MAX_SCENARIO_COUNT na backend-u (i <input max>
-// iznad) - ovde postoji samo da bi klijent mogao da javi gresku odmah,
-// bez cekanja na server.
+// Must match config.MAX_SCENARIO_COUNT on the backend (and the <input max>
+// above) - this exists here only so the client can report an error right
+// away, without waiting for a round trip to the server.
 const MAX_SCENARIO_COUNT = 50000;
 
 const runBtn = document.getElementById("runBtn");
@@ -349,8 +399,9 @@ function setStatus(text, isError) {
   statusLine.classList.toggle("error", !!isError);
 }
 
-// Cita i validira unos pre nego sto se posalje na server - da korisnik ne
-// ceka round-trip do backend-a da bi saznao da je npr. upisao slovo.
+// Reads and validates the input before it's sent to the server - so the
+// user doesn't have to wait for a round trip to the backend to find out
+// they typed a letter, for example.
 function readRunInputs() {
   const countRaw = document.getElementById("countInput").value.trim();
   const seedRaw = document.getElementById("seedInput").value.trim();
@@ -358,31 +409,31 @@ function readRunInputs() {
   const seed = Number(seedRaw);
 
   if (countRaw === "" || !Number.isInteger(count)) {
-    return { error: "Broj scenarija mora biti ceo broj." };
+    return { error: "Number of scenarios must be a whole number." };
   }
   if (count < 1 || count > MAX_SCENARIO_COUNT) {
-    return { error: `Broj scenarija mora biti izmedju 1 i ${MAX_SCENARIO_COUNT}.` };
+    return { error: `Number of scenarios must be between 1 and ${MAX_SCENARIO_COUNT}.` };
   }
   if (seedRaw === "" || !Number.isInteger(seed)) {
-    return { error: "Seed mora biti ceo broj." };
+    return { error: "Seed must be a whole number." };
   }
   return { count, seed };
 }
 
-// Pretvara gresku fetch-a (mrezni problem vs. HTTP status vs. neispravan
-// unos koji je server odbio) u razumljivu poruku na srpskom.
+// Turns a fetch error (network problem vs. HTTP status vs. invalid input
+// the server rejected) into a clear, readable message.
 function describeFetchError(e, res, body) {
   if (e) {
-    return "Ne mogu da se povezem sa serverom. Proveri da li je backend pokrenut (uvicorn api.main:app --reload).";
+    return "Can't connect to the server. Check that the backend is running (uvicorn api.main:app --reload).";
   }
   if (body && Array.isArray(body.detail)) {
     const msgs = body.detail.map((d) => (d && d.msg) || JSON.stringify(d)).join("; ");
-    return "Server je odbio zahtev: " + msgs;
+    return "Server rejected the request: " + msgs;
   }
   if (res) {
-    return `Server je vratio gresku (HTTP ${res.status}).`;
+    return `Server returned an error (HTTP ${res.status}).`;
   }
-  return "Doslo je do neocekivane greske.";
+  return "An unexpected error occurred.";
 }
 
 function renderSummary(data) {
@@ -400,7 +451,7 @@ function renderPatterns(patterns) {
   const labels = USECASES[activeUsecase].patternLabels;
   const entries = Object.entries(patterns || {}).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) {
-    box.innerHTML = '<p class="empty">Nema failure-a u poslednjem run-u.</p>';
+    box.innerHTML = '<p class="empty">No failures in the last run.</p>';
     return;
   }
   const max = Math.max(...entries.map((e) => e[1]));
@@ -446,8 +497,8 @@ function renderFailures(failures, shown, total) {
 
   note.textContent =
     total > shown
-      ? `Prikazano ${shown} od ukupno ${total} neuspelih scenarija.`
-      : `Prikazano svih ${shown} neuspelih scenarija.`;
+      ? `Showing ${shown} of ${total} total failed scenarios.`
+      : `Showing all ${shown} failed scenarios.`;
 }
 
 function renderFailuresPage() {
@@ -470,7 +521,7 @@ function renderFailuresPage() {
     pagination.style.display = "none";
   } else {
     pagination.style.display = "flex";
-    pageInfo.textContent = `Strana ${failuresState.page} od ${pageCount} (redovi ${start + 1}-${start + pageRows.length} od ${rows.length})`;
+    pageInfo.textContent = `Page ${failuresState.page} of ${pageCount} (rows ${start + 1}-${start + pageRows.length} of ${rows.length})`;
     prevPageBtn.disabled = failuresState.page <= 1;
     nextPageBtn.disabled = failuresState.page >= pageCount;
   }
@@ -481,7 +532,7 @@ function resetView() {
   document.getElementById("kpiPassed").textContent = "-";
   document.getElementById("kpiFailed").textContent = "-";
   document.getElementById("kpiRate").textContent = "-";
-  document.getElementById("patternsBox").innerHTML = '<p class="empty">Nema jos podataka - pokreni test run.</p>';
+  document.getElementById("patternsBox").innerHTML = '<p class="empty">No data yet - run a test.</p>';
   document.getElementById("failuresTable").style.display = "none";
   document.getElementById("failuresEmpty").style.display = "block";
   document.getElementById("pagination").style.display = "none";
@@ -490,12 +541,202 @@ function resetView() {
   failuresState.rows = [];
   failuresState.page = 1;
   setStatus("", false);
+
+  document.getElementById("trendChartWrap").style.display = "none";
+  document.getElementById("trendSvg").innerHTML = "";
+  document.getElementById("trendEmpty").style.display = "block";
+  document.getElementById("trendTableWrap").style.display = "none";
+  document.getElementById("trendTableBody").innerHTML = "";
+  document.getElementById("trendNote").textContent = "";
+  hideTrendTooltip();
 }
 
-// CSV izvoz svih neuspelih scenarija (ne samo trenutne strane) za aktivni
-// use case - kolone i redosled prate ono sto se vidi u tabeli. Skida se
-// direktno u browseru korisnika (dashboard se pokrece sa njegove masine
-// preko uvicorn-a, pa download radi normalno).
+// Formats an ISO timestamp (UTC, e.g. "2026-09-11T14:03:00Z") into a
+// short, readable form in the user's local time (day.month hour:minute).
+function fmtTrendWhen(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const trendTooltipEl = document.getElementById("trendTooltip");
+
+function hideTrendTooltip() {
+  trendTooltipEl.classList.remove("visible");
+}
+
+function showTrendTooltip(svg, cx, cy, entry) {
+  const wrap = svg.parentElement;
+  const svgRect = svg.getBoundingClientRect();
+  const wrapRect = wrap.getBoundingClientRect();
+  // cx/cy are in SVG coordinates (viewBox 0 0 720 160) - we convert them
+  // to pixels inside .trend-wrap, since the tooltip is positioned absolutely.
+  const scaleX = svgRect.width / 720;
+  const scaleY = svgRect.height / 160;
+  const left = svgRect.left - wrapRect.left + cx * scaleX;
+  const top = svgRect.top - wrapRect.top + cy * scaleY;
+
+  trendTooltipEl.innerHTML = `
+    <div class="trend-tooltip-value">${fmtPct(entry.pass_rate_pct)}</div>
+    <div class="trend-tooltip-meta">${fmtTrendWhen(entry.timestamp)}</div>
+    <div class="trend-tooltip-meta">${entry.count} scenarios, seed ${entry.seed}</div>
+    <div class="trend-tooltip-meta">FAIL: ${entry.failed}</div>
+  `;
+  trendTooltipEl.style.left = left + "px";
+  trendTooltipEl.style.top = top + "px";
+  trendTooltipEl.classList.add("visible");
+}
+
+// SVG dimensions and inner padding for the chart (see the viewBox in the HTML).
+const TREND_W = 720;
+const TREND_H = 160;
+const TREND_PAD = { top: 14, right: 16, bottom: 20, left: 34 };
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+// Draws the "Trend over time" chart (pass rate per run, last N) plus a
+// compact history table below it. entries are chronological (oldest
+// first), as returned by read_history().
+function renderTrend(entries) {
+  const wrap = document.getElementById("trendChartWrap");
+  const empty = document.getElementById("trendEmpty");
+  const svg = document.getElementById("trendSvg");
+  const tableWrap = document.getElementById("trendTableWrap");
+  const tableBody = document.getElementById("trendTableBody");
+  const note = document.getElementById("trendNote");
+
+  svg.innerHTML = "";
+  hideTrendTooltip();
+
+  if (!entries || entries.length === 0) {
+    wrap.style.display = "none";
+    empty.style.display = "block";
+    tableWrap.style.display = "none";
+    note.textContent = "";
+    return;
+  }
+
+  empty.style.display = "none";
+
+  // History table - newest first.
+  tableWrap.style.display = "block";
+  tableBody.innerHTML = entries
+    .slice()
+    .reverse()
+    .map(
+      (e) => `<tr>
+        <td>${fmtTrendWhen(e.timestamp)}</td>
+        <td>${e.count}</td>
+        <td>${e.seed}</td>
+        <td>${fmtPct(e.pass_rate_pct)}</td>
+        <td>${e.failed}</td>
+      </tr>`
+    )
+    .join("");
+  note.textContent =
+    entries.length === 1
+      ? "Only one run recorded so far - one more and the trend line will appear."
+      : `Showing the last ${entries.length} runs.`;
+
+  // The trend line/area is only drawn once there are at least 2 points - a
+  // single point has no "trend" to show, so only the table is shown then.
+  if (entries.length < 2) {
+    wrap.style.display = "none";
+    return;
+  }
+  wrap.style.display = "block";
+
+  const innerW = TREND_W - TREND_PAD.left - TREND_PAD.right;
+  const innerH = TREND_H - TREND_PAD.top - TREND_PAD.bottom;
+  const n = entries.length;
+  const x = (i) => TREND_PAD.left + (n === 1 ? innerW / 2 : (innerW * i) / (n - 1));
+  const y = (pct) => TREND_PAD.top + innerH - (innerH * Math.max(0, Math.min(100, pct))) / 100;
+
+  // Gridlines at 0/50/100%.
+  [0, 50, 100].forEach((pct) => {
+    const gy = y(pct);
+    svg.appendChild(
+      svgEl("line", { class: "trend-grid", x1: TREND_PAD.left, y1: gy, x2: TREND_W - TREND_PAD.right, y2: gy })
+    );
+    const label = svgEl("text", { class: "trend-axis-label", x: 2, y: gy + 3 });
+    label.textContent = pct + "%";
+    svg.appendChild(label);
+  });
+
+  const points = entries.map((e, i) => [x(i), y(e.pass_rate_pct)]);
+
+  // Area below the line (down to the bottom of the chart).
+  const areaBottom = TREND_PAD.top + innerH;
+  const areaPath =
+    `M ${points[0][0]},${areaBottom} ` +
+    points.map(([px, py]) => `L ${px},${py}`).join(" ") +
+    ` L ${points[points.length - 1][0]},${areaBottom} Z`;
+  svg.appendChild(svgEl("path", { class: "trend-area", d: areaPath }));
+
+  // Trend line.
+  const linePath = "M " + points.map(([px, py]) => `${px},${py}`).join(" L ");
+  svg.appendChild(svgEl("path", { class: "trend-line", d: linePath }));
+
+  // Dots + hover hit-targets (a bigger invisible circle around each dot,
+  // to make it easier to hit with a mouse/touch - see dataviz guidelines:
+  // hit target >= 24px).
+  points.forEach(([px, py], i) => {
+    const entry = entries[i];
+    svg.appendChild(svgEl("circle", { class: "trend-dot", cx: px, cy: py, r: 4 }));
+    const hit = svgEl("circle", {
+      class: "trend-hit",
+      cx: px,
+      cy: py,
+      r: 12,
+      tabindex: "0",
+      role: "img",
+      "aria-label": `${fmtTrendWhen(entry.timestamp)}: ${fmtPct(entry.pass_rate_pct)} pass rate`,
+    });
+    hit.addEventListener("mouseenter", () => showTrendTooltip(svg, px, py, entry));
+    hit.addEventListener("mouseleave", hideTrendTooltip);
+    hit.addEventListener("focus", () => showTrendTooltip(svg, px, py, entry));
+    hit.addEventListener("blur", hideTrendTooltip);
+    svg.appendChild(hit);
+  });
+
+  // Direct label on the last point (value at the end of the line).
+  const last = points[points.length - 1];
+  const lastEntry = entries[entries.length - 1];
+  const endLabel = svgEl("text", {
+    class: "trend-endlabel",
+    x: Math.min(last[0] + 8, TREND_W - 4),
+    y: Math.max(last[1] + 4, 12),
+    "text-anchor": last[0] > TREND_W - 60 ? "end" : "start",
+  });
+  endLabel.textContent = fmtPct(lastEntry.pass_rate_pct);
+  svg.appendChild(endLabel);
+}
+
+async function loadHistory() {
+  let res;
+  try {
+    res = await fetch(USECASES[activeUsecase].historyUrl);
+  } catch (e) {
+    return; // history is a secondary display - fail silently if there's no network
+  }
+  if (!res.ok) return;
+  try {
+    const data = await res.json();
+    renderTrend(data.entries || []);
+  } catch (e) {
+    /* unexpected response - leave the trend in its empty state */
+  }
+}
+
+// CSV export of all failed scenarios (not just the current page) for the
+// active use case - columns and order follow what's shown in the table.
+// Downloads directly in the user's browser (the dashboard runs from their
+// own machine via uvicorn, so the download works normally).
 function toCsvField(value) {
   const s = String(value);
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -514,7 +755,7 @@ function downloadFailuresCsv() {
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${activeUsecase}_neuspeli_scenariji_${stamp}.csv`;
+  a.download = `${activeUsecase}_failed_scenarios_${stamp}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -537,7 +778,7 @@ async function loadSummary() {
     const data = await res.json();
     if (!data.no_run_yet) renderSummary(data);
   } catch (e) {
-    setStatus("Server je vratio neocekivan odgovor.", true);
+    setStatus("Server returned an unexpected response.", true);
   }
 }
 
@@ -550,7 +791,7 @@ async function runTests() {
   const { count, seed } = inputs;
 
   runBtn.disabled = true;
-  setStatus(`Pokrecem ${count} scenarija...`, false);
+  setStatus(`Running ${count} scenarios...`, false);
 
   let res;
   try {
@@ -570,7 +811,7 @@ async function runTests() {
     try {
       body = await res.json();
     } catch (_) {
-      /* odgovor nije bio JSON - body ostaje null, describeFetchError ima fallback */
+      /* response wasn't JSON - body stays null, describeFetchError has a fallback */
     }
     setStatus(describeFetchError(null, res, body), true);
     runBtn.disabled = false;
@@ -580,9 +821,10 @@ async function runTests() {
   try {
     const data = await res.json();
     renderSummary(data);
-    setStatus(`Gotovo - ${data.summary.total} scenarija, ${data.summary.failed} FAIL.`, false);
+    setStatus(`Done - ${data.summary.total} scenarios, ${data.summary.failed} FAIL.`, false);
+    loadHistory();
   } catch (e) {
-    setStatus("Server je vratio neocekivan odgovor.", true);
+    setStatus("Server returned an unexpected response.", true);
   } finally {
     runBtn.disabled = false;
   }
@@ -597,6 +839,7 @@ function switchUsecase(usecase) {
   });
   resetView();
   loadSummary();
+  loadHistory();
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -613,6 +856,7 @@ nextPageBtn.addEventListener("click", () => {
 });
 downloadCsvBtn.addEventListener("click", downloadFailuresCsv);
 loadSummary();
+loadHistory();
 </script>
 </body>
 </html>

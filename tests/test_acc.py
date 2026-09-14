@@ -1,6 +1,6 @@
 """
-Unit testovi za ACC Virtual ECU, sa rucno izracunatim ocekivanim
-vrednostima - isti princip kao tests/test_aeb.py i tests/test_lka.py.
+Unit tests for the ACC Virtual ECU, with manually calculated expected
+values - the same approach as tests/test_aeb.py and tests/test_lka.py.
 """
 
 import pytest
@@ -10,7 +10,7 @@ from virtual_ecu.acc import ACCVirtualECU
 
 def test_decelerate_on_when_gap_below_desired():
     """100 km/h = 27.78 m/s -> desired_gap = 5 + 27.78*1.5 = 46.67m.
-    Razmak 40m < 46.67m -> DECELERATE ON."""
+    Gap 40m < 46.67m -> DECELERATE ON."""
     ecu = ACCVirtualECU()
     r = ecu.process(
         ego_speed_kmh=100,
@@ -23,7 +23,7 @@ def test_decelerate_on_when_gap_below_desired():
 
 
 def test_decelerate_off_when_gap_above_desired():
-    """Isti desired_gap (46.67m), ali razmak 60m > 46.67m -> DECELERATE OFF."""
+    """Same desired_gap (46.67m), but gap 60m > 46.67m -> DECELERATE OFF."""
     ecu = ACCVirtualECU()
     r = ecu.process(
         ego_speed_kmh=100,
@@ -35,7 +35,7 @@ def test_decelerate_off_when_gap_above_desired():
 
 
 def test_driver_override_suppresses_deceleration():
-    """Cak i kad bi ACC inace usporio (mali razmak), vozac na gasu to sprecava."""
+    """Even when ACC would otherwise decelerate (small gap), the driver on the gas pedal prevents it."""
     ecu = ACCVirtualECU()
     r = ecu.process(
         ego_speed_kmh=100,
@@ -47,8 +47,8 @@ def test_driver_override_suppresses_deceleration():
 
 
 def test_minimum_gap_applies_even_at_standstill():
-    """Pri brzini 0, desired_gap = samo ACC_MIN_GAP_M (5m) - fiksni minimum
-    se postuje i pri stajanju, ne samo vremenski razmak."""
+    """At speed 0, desired_gap = just ACC_MIN_GAP_M (5m) - the fixed minimum
+    is respected even at standstill, not just the time-based gap."""
     ecu = ACCVirtualECU()
     r = ecu.process(
         ego_speed_kmh=0,
@@ -61,8 +61,8 @@ def test_minimum_gap_applies_even_at_standstill():
 
 
 def test_relative_speed_positive_when_closing_in():
-    """Moja brzina (108 km/h = 30 m/s) veca od brzine vozila ispred
-    (72 km/h = 20 m/s) -> priblizavamo se, relativna brzina = +10 m/s."""
+    """My speed (108 km/h = 30 m/s) is greater than the speed of the vehicle ahead
+    (72 km/h = 20 m/s) -> we are closing in, relative speed = +10 m/s."""
     ecu = ACCVirtualECU()
     r = ecu.process(
         ego_speed_kmh=108,

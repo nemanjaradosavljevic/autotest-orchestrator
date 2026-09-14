@@ -1,8 +1,8 @@
 """
-LKA Test Engine - ucitava LKA scenario, pokrece Virtual ECU, poredi
-expected vs actual i vraca PASS/FAIL. Struktura je namerno identicna
-test_engine/runner.py (AEB) - dokaz da se obrazac ponavlja za novi use case
-bez potrebe da se ista logika ponovo izmislja.
+LKA Test Engine - loads an LKA scenario, runs the Virtual ECU, compares
+expected vs actual, and returns PASS/FAIL. The structure is deliberately
+identical to test_engine/runner.py (AEB) - proof that the pattern repeats
+for a new use case without needing to reinvent the same logic.
 """
 
 from dataclasses import asdict, dataclass

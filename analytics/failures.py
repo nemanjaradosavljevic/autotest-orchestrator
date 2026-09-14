@@ -1,21 +1,20 @@
 """
-Failure Analysis - grupise neuspesne scenarije po prepoznatljivim
-obrascima, da bi inzenjer brze razumeo GDE i ZASTO sistem najcesce pada,
-umesto da samo vidi "N testova je palo" (poglavlje "Failure Analysis" u
-projektnom planu).
+Failure Analysis - groups failed scenarios into recognizable patterns, so an
+engineer can quickly understand WHERE and WHY the system fails most often,
+instead of just seeing "N tests failed" (see the "Failure Analysis" section
+in the project plan).
 
-Ovo su rucno definisana ("rule-based") pravila - dovoljno za prvi MVP.
-Kasnije se ovde moze dodati clustering/ML kada za tim postoji stvarna
-potreba.
+These are manually defined ("rule-based") rules - good enough for the first
+MVP. Clustering/ML can be added here later, if and when there is a real
+need for it.
 
-Napomena o "safety_margin_edge_case": otkad test_engine/assertions.py
-zahteva SAFETY_MARGIN (15% vise prostora nego sto aeb.py stvarno koristi),
-svaki FAIL po definiciji znaci "ECU nije zakocio na vreme sa rezervom" -
-i to se moze desiti pri BILO KOJOJ brzini/vremenu, ne samo u ekstremnim
-uslovima. Zato ce najveci deo failure-a padati u ovu kategoriju osim ako
-se ne poklope i sa nekim drugim otezavajucim faktorom (brzina, kisa,
-kasnjenje senzora) - to je ocekivano i realno ponasanje, ne greska u
-klasifikatoru.
+Note on "safety_margin_edge_case": since test_engine/assertions.py requires
+SAFETY_MARGIN (15% more room than aeb.py actually uses), every FAIL by
+definition means "the ECU did not brake in time with a margin to spare" -
+and this can happen at ANY speed/time, not only in extreme conditions. So
+most failures will fall into this category unless they also coincide with
+some other aggravating factor (speed, rain, sensor delay) - that is
+expected, realistic behavior, not a bug in the classifier.
 """
 
 from collections import defaultdict

@@ -1,16 +1,17 @@
 """
-Virtual ECU - Adaptive Cruise Control (ACC) logika.
+Virtual ECU - Adaptive Cruise Control (ACC) logic.
 
-Treci use case pored AEB-a (virtual_ecu/aeb.py) i LKA-e (virtual_ecu/lka.py),
-namerno napisan po istom obrascu: cist ulaz -> logika -> izlaz, bez
-zavisnosti od ostatka sistema.
+A third use case alongside AEB (virtual_ecu/aeb.py) and LKA
+(virtual_ecu/lka.py), deliberately written following the same pattern:
+clean input -> logic -> output, with no dependency on the rest of the
+system.
 
-Pojednostavljen "constant time headway" model, koji se koristi i u pravim
-ACC sistemima: zeljeno (bezbedno) rastojanje od vozila ispred raste
-linearno sa brzinom (sto brze vozis, treba ti vise prostora/vremena da
-reagujes), plus fiksni minimum razmak koji vazi i pri stajanju. Ako je
-stvarni razmak manji od zeljenog, sistem usporava (osim ako vozac aktivno
-pritiska gas, sto override-uje ACC).
+A simplified "constant time headway" model, also used in real ACC systems:
+the desired (safe) distance to the lead vehicle grows linearly with speed
+(the faster you drive, the more space/time you need to react), plus a
+fixed minimum gap that applies even at a standstill. If the actual gap is
+smaller than the desired one, the system decelerates (unless the driver is
+actively pressing the accelerator, which overrides the ACC).
 """
 
 from dataclasses import dataclass
@@ -22,11 +23,11 @@ from config import ACC_MIN_GAP_M, ACC_TIME_HEADWAY_S
 class ACCOutput:
     decelerate: bool
     desired_gap_m: float
-    relative_speed_m_s: float  # pozitivno = priblizavamo se vozilu ispred
+    relative_speed_m_s: float  # positive = closing in on the lead vehicle
 
 
 class ACCVirtualECU:
-    """Simulira ECU logiku za Adaptive Cruise Control."""
+    """Simulates the ECU logic for Adaptive Cruise Control."""
 
     def process(
         self,
@@ -36,17 +37,17 @@ class ACCVirtualECU:
         driver_override_active: bool,
     ) -> ACCOutput:
         if ego_speed_kmh < 0:
-            raise ValueError("ego_speed_kmh ne moze biti negativna")
+            raise ValueError("ego_speed_kmh cannot be negative")
         if lead_speed_kmh < 0:
-            raise ValueError("lead_speed_kmh ne moze biti negativna")
+            raise ValueError("lead_speed_kmh cannot be negative")
         if gap_distance_m < 0:
-            raise ValueError("gap_distance_m ne moze biti negativan")
+            raise ValueError("gap_distance_m cannot be negative")
 
         ego_speed_m_s = ego_speed_kmh / 3.6
         lead_speed_m_s = lead_speed_kmh / 3.6
         relative_speed_m_s = ego_speed_m_s - lead_speed_m_s
 
-        # Zeljeni razmak: fiksni minimum + vremenski razmak koji raste sa brzinom.
+        # Desired gap: fixed minimum + time headway that grows with speed.
         desired_gap_m = ACC_MIN_GAP_M + ego_speed_m_s * ACC_TIME_HEADWAY_S
 
         decelerate = gap_distance_m < desired_gap_m

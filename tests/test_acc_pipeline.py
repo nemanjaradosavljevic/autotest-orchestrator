@@ -1,7 +1,7 @@
 """
-Integracioni testovi za ACC scenario generator, test engine i failure
-analizu - isti princip kao test_generator.py / test_engine.py /
-test_failures.py (AEB) i test_lka_pipeline.py (LKA).
+Integration tests for the ACC scenario generator, test engine, and failure
+analysis - the same approach as test_generator.py / test_engine.py /
+test_failures.py (AEB) and test_lka_pipeline.py (LKA).
 """
 
 from analytics.acc_failures import failure_pattern_summary, group_failures

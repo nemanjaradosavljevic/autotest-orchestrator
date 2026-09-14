@@ -1,7 +1,8 @@
 """
-ACC Test Engine - ucitava ACC scenario, pokrece Virtual ECU, poredi
-expected vs actual i vraca PASS/FAIL. Struktura je namerno identicna
-test_engine/runner.py (AEB) i test_engine/lka_runner.py (LKA).
+ACC Test Engine - loads an ACC scenario, runs the Virtual ECU, compares
+expected vs actual, and returns PASS/FAIL. The structure is deliberately
+identical to test_engine/runner.py (AEB) and test_engine/lka_runner.py
+(LKA).
 """
 
 from dataclasses import asdict, dataclass

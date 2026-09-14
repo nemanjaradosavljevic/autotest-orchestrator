@@ -1,17 +1,19 @@
 """
-Virtual ECU - Lane Keep Assist (LKA) logika.
+Virtual ECU - Lane Keep Assist (LKA) logic.
 
-Drugi use case pored AEB-a (virtual_ecu/aeb.py), namerno napisan po istom
-obrascu: cist ulaz -> logika -> izlaz, bez zavisnosti od ostatka sistema.
-Cilj je da pokaze da arhitektura (Scenario Engine -> Virtual ECU -> Test
-Engine -> Analytics -> Dashboard) generalizuje na vise od jedne automotive
-funkcije, ne samo na kocenje.
+A second use case alongside AEB (virtual_ecu/aeb.py), deliberately written
+following the same pattern: clean input -> logic -> output, with no
+dependency on the rest of the system. The goal is to show that the
+architecture (Scenario Engine -> Virtual ECU -> Test Engine -> Analytics ->
+Dashboard) generalizes to more than one automotive function, not just
+braking.
 
-Pojednostavljen model: sistem prati koliko je vozilo daleko od ivice trake
-i koliko brzo se ka njoj priblizava (lateralna brzina), pa racuna "time to
-line crossing" (TTLC) - za koliko sekundi bi vozilo preslo ivicu trake ako
-se nista ne promeni. Ako je TTLC ispod praga (i vozac ne upravlja aktivno),
-sistem intervenise (koriguje upravljanje).
+Simplified model: the system tracks how far the vehicle is from the lane
+edge and how fast it is approaching it (lateral velocity), then computes
+the "time to line crossing" (TTLC) - how many seconds until the vehicle
+would cross the lane edge if nothing changes. If TTLC is below the
+threshold (and the driver is not actively steering), the system intervenes
+(corrects the steering).
 """
 
 from dataclasses import dataclass
@@ -23,12 +25,12 @@ from config import LKA_TTLC_THRESHOLD_S as TTLC_THRESHOLD_S
 @dataclass(frozen=True)
 class LKAOutput:
     intervene: bool
-    time_to_crossing_s: Optional[float]  # None = vozilo se ne priblizava ivici
+    time_to_crossing_s: Optional[float]  # None = the vehicle is not approaching the edge
     distance_to_edge_m: float
 
 
 class LKAVirtualECU:
-    """Simulira ECU logiku za Lane Keep Assist."""
+    """Simulates the ECU logic for Lane Keep Assist."""
 
     def process(
         self,
@@ -39,17 +41,17 @@ class LKAVirtualECU:
         driver_steering_active: bool,
     ) -> LKAOutput:
         if vehicle_speed_kmh < 0:
-            raise ValueError("vehicle_speed_kmh ne moze biti negativna")
+            raise ValueError("vehicle_speed_kmh cannot be negative")
         if lane_half_width_m <= 0:
-            raise ValueError("lane_half_width_m mora biti pozitivna")
+            raise ValueError("lane_half_width_m must be positive")
 
         distance_to_edge_m = lane_half_width_m - abs(lateral_offset_m)
 
         if distance_to_edge_m <= 0:
-            # Vozilo je vec na ivici ili preko nje - nema vremena za gubljenje.
+            # The vehicle is already at or past the edge - no time to lose.
             time_to_crossing_s: Optional[float] = 0.0
         elif lateral_velocity_m_s <= 0:
-            # Ne priblizava se ivici (miruje ili se vraca ka centru trake).
+            # Not approaching the edge (stationary or moving back toward the lane center).
             time_to_crossing_s = None
         else:
             time_to_crossing_s = distance_to_edge_m / lateral_velocity_m_s

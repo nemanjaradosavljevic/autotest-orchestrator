@@ -1,14 +1,15 @@
 """
-ACC Assertions - referentni ("oracle") proracun ocekivanog ponasanja za
-Adaptive Cruise Control, po istom principu kao test_engine/assertions.py
-(AEB) i test_engine/lka_assertions.py (LKA): "expected" je namerno strozija
-(konzervativnija) verzija sistema, sa bezbednosnom marginom, dok "actual"
-(virtual_ecu/acc.py) usporava tacno na granici zeljenog razmaka.
+ACC Assertions - reference ("oracle") calculation of expected behavior for
+Adaptive Cruise Control, following the same principle as
+test_engine/assertions.py (AEB) and test_engine/lka_assertions.py (LKA):
+"expected" is deliberately a stricter (more conservative) version of the
+system, with a safety margin, while "actual" (virtual_ecu/acc.py) decelerates
+exactly at the boundary of the desired gap.
 
-ACC_SAFETY_MARGIN ovde znaci: sistem treba da usporava kad je razmak manji
-od zeljenog razmaka UVECANOG za marginu - isti "prag pomeren u
-konzervativniju stranu" princip kao kod AEB-a/LKA-e, samo primenjen na
-razmak od vozila ispred.
+ACC_SAFETY_MARGIN here means: the system should decelerate when the gap is
+smaller than the desired gap INCREASED by the margin - the same "threshold
+shifted to the more conservative side" principle as with AEB/LKA, just
+applied to the gap to the lead vehicle.
 """
 
 from dataclasses import dataclass

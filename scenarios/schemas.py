@@ -1,8 +1,8 @@
 """
-Schemas - definicija strukture test scenarija, po jedan dataclass po use
-case-u (AEB, LKA, ...). Svaki novi use case samo dodaje svoju klasu ovde -
-ostatak sistema (Test Engine, Analytics, Dashboard) ne mora da zna za
-detalje drugih use case-ova.
+Schemas - defines the structure of test scenarios, one dataclass per use
+case (AEB, LKA, ...). Each new use case just adds its own class here -
+the rest of the system (Test Engine, Analytics, Dashboard) doesn't need to
+know about the details of other use cases.
 """
 
 from dataclasses import dataclass, asdict
@@ -13,8 +13,8 @@ Weather = Literal["dry", "rain"]
 
 @dataclass(frozen=True)
 class Scenario:
-    """AEB scenario. Ime je istorijsko (prvi use case u projektu) - zadrzano
-    ovakvo da ne bismo lomili vec postojeci, testirani kod."""
+    """AEB scenario. The name is historical (the first use case in the
+    project) - kept this way so we don't break existing, tested code."""
 
     id: int
     vehicle_speed_kmh: float

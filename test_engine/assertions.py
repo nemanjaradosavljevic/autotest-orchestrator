@@ -1,31 +1,33 @@
 """
-Assertions - referentni ("oracle") proracun ocekivanog ponasanja, koriscen
-da se proveri da li Virtual ECU (virtual_ecu/aeb.py) radi ispravno.
+Assertions - reference ("oracle") calculation of expected behavior, used
+to verify that the Virtual ECU (virtual_ecu/aeb.py) behaves correctly.
 
-Namerno je odvojen u svoj fajl (kao u projektnom planu: test_engine/{runner,
-assertions, results}.py), da bi test infrastruktura ostala razdvojena od
-implementacije koju testira.
+Deliberately kept in its own file (as in the project plan:
+test_engine/{runner, assertions, results}.py), so the test infrastructure
+stays separate from the implementation it tests.
 
-BEZBEDNOSNA MARGINA: ovaj modul namerno NIJE identican virtual_ecu/aeb.py.
-Realan safety-critical zahtev (i u pravom automotive svetu) je da sistem
-koci PRE nego sto fizicki dodje do granice - sa rezervom, jer stvarni uslovi
-(neravnina puta, gume, senzor sum) nikad nisu savrseno poznati. Zato
-"expected" ovde zahteva SAFETY_MARGIN (15%) vise prostora nego sto AEB
-implementacija (aeb.py) trenutno koristi. Kada je stvarna udaljenost do
-prepreke izmedju "gole" fizicke granice i granice sa marginom, ECU (actual)
-kaze OFF, a specifikacija (expected) kaze da je trebalo ON -> FAIL. To su
-realni, korisni failure-i za failure analizu (analytics/failures.py), a ne
-vestacki ubaceni bug.
+SAFETY MARGIN: this module is deliberately NOT identical to
+virtual_ecu/aeb.py. A real safety-critical requirement (as in the real
+automotive world too) is that the system brakes BEFORE it physically
+reaches the limit - with a reserve, because real-world conditions (road
+surface irregularities, tires, sensor noise) are never perfectly known.
+That's why "expected" here requires SAFETY_MARGIN (15%) more space than
+the AEB implementation (aeb.py) currently uses. When the actual distance
+to the obstacle falls between the "bare" physical limit and the limit
+with margin, the ECU (actual) says OFF, while the specification
+(expected) says it should have been ON -> FAIL. These are real, useful
+failures for failure analysis (analytics/failures.py), not an
+artificially injected bug.
 
-Kada se u V2/V3 doda pravi STM32/CAN ECU ili integracija sa CANoe/dSPACE,
-ovaj isti kod ostaje "expected" strana poredjenja, a "actual" dolazi sa
-stvarnog uredjaja - razdvajanje tada pocinje da hvata i prave razlike u
-firmveru, zaokruzivanjima i kasnjenjima.
+When a real STM32/CAN ECU or a CANoe/dSPACE integration is added in
+V2/V3, this same code remains the "expected" side of the comparison,
+while "actual" comes from the real device - the separation then starts
+catching real differences in firmware, rounding, and delays as well.
 
-Za potpuno nezavisnu proveru da je sama fizicka formula (bez margine)
-ispravno implementirana, videti rucno izracunate granicne slucajeve u
-tests/test_aeb.py - oni testiraju aeb.py direktno i ne zavise od ovog
-fajla.
+For a fully independent check that the pure physical formula (without
+the margin) is implemented correctly, see the manually calculated edge
+cases in tests/test_aeb.py - they test aeb.py directly and do not
+depend on this file.
 """
 
 from dataclasses import dataclass
@@ -33,9 +35,9 @@ from dataclasses import dataclass
 from config import AEB_SAFETY_MARGIN as SAFETY_MARGIN
 from config import GRAVITY_M_S2
 
-# Napomena: SAFETY_MARGIN ("rezerva" za neizvesnost u realnim uslovima) i
-# GRAVITY_M_S2 sada zive u config.py, da bi bili na istom mestu kao svi
-# ostali podesivi pragovi u sistemu.
+# Note: SAFETY_MARGIN (the "reserve" for uncertainty in real-world
+# conditions) and GRAVITY_M_S2 now live in config.py, so they're in the
+# same place as all the other tunable thresholds in the system.
 
 
 @dataclass(frozen=True)

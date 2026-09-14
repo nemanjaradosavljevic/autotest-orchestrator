@@ -1,7 +1,7 @@
 """
-ACC Failure Analysis - grupise neuspesne ACC scenarije po prepoznatljivim
-obrascima. Isti obrazac kao analytics/failures.py (AEB) i
-analytics/lka_failures.py (LKA), primenjen na ACC polja.
+ACC Failure Analysis - groups failed ACC scenarios into recognizable
+patterns. The same pattern as analytics/failures.py (AEB) and
+analytics/lka_failures.py (LKA), applied to ACC fields.
 """
 
 from collections import defaultdict
