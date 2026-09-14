@@ -1,0 +1,14 @@
+# One-command demo: `docker compose up --build`, then open http://localhost:8000
+#
+# Rebuild after changing requirements.txt or any Python/HTML file with:
+#   docker compose up --build
+
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist run results and history on the host, so they survive
+      # container restarts/rebuilds instead of living only inside the image.
+      - ./results:/app/results

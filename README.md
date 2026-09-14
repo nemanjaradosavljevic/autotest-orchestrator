@@ -54,7 +54,10 @@ autotest-orchestrator/
 ├── tests/                  # pytest tests (unit + integration), per use case
 ├── results/                # JSON results from each run are saved here
 ├── main.py                 # CLI entry point (--usecase aeb|lka|acc)
-└── requirements.txt
+├── requirements.txt
+├── Dockerfile               # One-command dashboard demo (see "Run with Docker")
+├── docker-compose.yml
+└── .dockerignore
 ```
 
 ## Installation (Windows)
@@ -149,6 +152,36 @@ reads the last `RUN_HISTORY_DISPLAY_LIMIT` entries (30 by default,
 configurable in `config.py`) via `/api/history`, `/api/lka/history`, and
 `/api/acc/history`, but the complete history stays on disk. If you want
 to reset the trend, just delete the corresponding `history_*.jsonl` file.
+
+## Run with Docker
+
+The fastest way to try the dashboard - no Python, venv, or `pip install`
+needed on your machine, only [Docker Desktop](https://www.docker.com/products/docker-desktop/):
+
+```
+docker compose up --build
+```
+
+Then open **http://localhost:8000**, same as running `uvicorn` directly.
+`docker-compose.yml` mounts `./results` into the container, so run history
+and the latest-run JSON files persist on your machine across rebuilds -
+`docker compose down` and `docker compose up --build` again won't lose them.
+
+`Ctrl+C` stops it. Rebuild after changing `requirements.txt` or any
+Python/HTML file with `docker compose up --build` again (plain
+`docker compose up` reuses the last built image).
+
+Without Compose, the same image can be built and run directly:
+
+```
+docker build -t autotest-orchestrator .
+docker run -p 8000:8000 -v "$(pwd)/results:/app/results" autotest-orchestrator
+```
+
+(On Windows PowerShell, replace `$(pwd)` with `${PWD}`.)
+
+The CLI (`python main.py`) still needs a local Python environment - the
+Docker image only packages the FastAPI/dashboard side.
 
 ## Tests
 

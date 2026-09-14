@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+
+# Editor / VCS
+.git/
+.github/
+.idea/
+.vscode/
+
+# Run output - the container creates its own results/ directory; local
+# results shouldn't be baked into the image.
+results/*.json
+results/*.jsonl
+
+# Misc
+*.md
+!README.md
