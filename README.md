@@ -194,6 +194,18 @@ The tests cover all three use cases: ECU logic (manually calculated edge
 cases, independent of `assertions.py`/`lka_assertions.py`/`acc_assertions.py`),
 scenario generators, test engines, and failure analytics.
 
+`tests/test_properties.py` adds property-based tests (using
+[hypothesis](https://hypothesis.readthedocs.io/)) on top of the
+example-based ones above. Instead of checking a handful of hand-picked
+inputs, each property test generates hundreds of random (including
+boundary) inputs and checks an invariant that should hold for all of
+them - for example, that a computed stopping distance/TTLC/gap is never
+negative, that it never gets smaller when speed goes up, and that the
+"expected" oracle (which includes a safety margin) always agrees whenever
+the actual ECU decides to brake/intervene/decelerate. These run
+automatically as part of `pytest`/`pytest -v`, no separate command
+needed.
+
 ## CI/CD (GitHub Actions)
 
 The project has `.github/workflows/tests.yml`, which automatically runs
