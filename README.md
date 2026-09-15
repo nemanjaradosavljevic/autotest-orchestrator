@@ -130,7 +130,16 @@ Then open **http://127.0.0.1:8000** in your browser. The dashboard has:
 - a table of failed scenarios with actual/expected values, paginated
   (25 per page) when there are many,
 - a "Download CSV" button (downloads ALL failed scenarios for the active
-  use case as a CSV file, not just the current table page).
+  use case as a CSV file, not just the current table page),
+- a **"Replay" button on every failed scenario** that opens a small 2D
+  animation (canvas, no extra request - it's reconstructed client-side
+  from the row's own inputs/outputs) showing what actually happened: the
+  ego vehicle approaching the obstacle (AEB), drifting toward the lane
+  edge (LKA), or closing in on the lead vehicle (ACC), together with the
+  "physical" and "required with safety margin" threshold lines - so a
+  FAIL is something you can watch happen, not just read as a row of
+  numbers. Play/pause, restart, and 0.5x/1x/2x speed controls are
+  included.
 
 If you enter an invalid number of scenarios/seed (e.g. an empty field, a
 number outside the 1-50000 range, a decimal number) or the backend isn't
@@ -360,9 +369,22 @@ build step, so those two values need to be kept manually in sync with
 
 1. More use cases, following the same pattern (e.g. Forward Collision
    Warning, Blind Spot Detection).
-2. CAN communication and an STM32 as the physical ECU (V2) - waiting on
+2. **Critical scenario search** - replace/augment the current random
+   scenario generation with a search (hill-climbing/simulated annealing)
+   that deliberately hunts for the parameter combination closest to the
+   safety-margin boundary, similar to what the industry calls "critical
+   scenario search" / "falsification" in the context of ISO 21448
+   (SOTIF).
+3. **AI-generated failure reports** - an LLM-written, human-readable
+   root-cause summary over a run's failure clusters (built on top of
+   `analytics/failures.py` and its LKA/ACC equivalents), e.g. "80% of AEB
+   failures combine speed > 100 km/h with sensor delay > 300 ms."
+4. **ASAM OpenSCENARIO import/export** - support for a useful subset of
+   the `.xosc` industry-standard scenario format, so scenarios can be
+   shared with/imported from other tools (CARLA, esmini, dSPACE, ...).
+5. CAN communication and an STM32 as the physical ECU (V2) - waiting on
    practical embedded knowledge/hardware.
-3. Integration with CANoe/dSPACE/ECU-TEST (V3).
+6. Integration with CANoe/dSPACE/ECU-TEST (V3).
 
 Working principle from the project plan: **learn -> build -> test -> show
 the user -> validate -> expand.**

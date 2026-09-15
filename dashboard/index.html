@@ -205,6 +205,70 @@
     cursor: pointer;
   }
   .tab-btn.active { background: var(--sequential); color: #fff; border-color: var(--sequential); }
+
+  .replay-btn {
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--gridline);
+    background: var(--surface);
+    color: var(--sequential);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .replay-btn:hover { background: var(--sequential-track); }
+
+  .replay-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 50;
+  }
+  .replay-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .replay-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+  .replay-panel-head h3 { margin: 0; font-size: 15px; }
+  .replay-panel-sub { color: var(--text-secondary); font-size: 12.5px; margin: 2px 0 14px; }
+  .replay-close-btn {
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+  .replay-close-btn:hover { color: var(--text-primary); }
+  .replay-canvas-wrap { background: var(--page); border: 1px solid var(--gridline); border-radius: 8px; overflow: hidden; }
+  canvas#replayCanvas { display: block; width: 100%; height: 200px; }
+  .replay-status-line { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 12.5px; gap: 12px; }
+  .replay-status-line .verdict { font-weight: 700; flex-shrink: 0; }
+  .replay-status-line .verdict.fail { color: var(--critical); }
+  .replay-status-line .verdict.pass { color: var(--good); }
+  .replay-controls { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .replay-controls select {
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--gridline);
+    background: var(--page);
+    color: var(--text-primary);
+    font-size: 12.5px;
+  }
+  .replay-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: var(--text-secondary); }
+  .replay-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .replay-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -273,6 +337,7 @@
     <p class="table-note" style="margin-top:-8px; margin-bottom: 14px;">
       "Actual" is what the ECU actually did (red - the reason the scenario failed),
       "Expected" is what the spec (with the safety margin) required (green).
+      Click "Replay" on any row to watch the scenario play out.
     </p>
     <div class="table-scroll">
       <table id="failuresTable" style="display:none">
@@ -287,6 +352,39 @@
       <button class="page-btn" id="nextPageBtn">Next &rarr;</button>
     </div>
     <p class="table-note" id="failuresNote"></p>
+  </div>
+</div>
+
+<div class="replay-overlay" id="replayOverlay" style="display:none">
+  <div class="replay-panel">
+    <div class="replay-panel-head">
+      <div>
+        <h3 id="replayTitle">Scenario replay</h3>
+        <p class="replay-panel-sub" id="replaySub"></p>
+      </div>
+      <button class="replay-close-btn" id="replayCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="replay-canvas-wrap">
+      <canvas id="replayCanvas"></canvas>
+    </div>
+    <div class="replay-status-line">
+      <span id="replayStatusText">-</span>
+      <span class="verdict" id="replayVerdict"></span>
+    </div>
+    <div class="replay-controls">
+      <button class="page-btn" id="replayPlayBtn">Pause</button>
+      <button class="page-btn" id="replayRestartBtn">Restart</button>
+      <label style="font-size:12.5px; color:var(--text-secondary); display:flex; align-items:center; gap:6px;">
+        Speed
+        <select id="replaySpeedSelect">
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option>
+          <option value="2">2x</option>
+        </select>
+      </label>
+      <span id="replayTimeLabel" style="font-size:12px; color:var(--text-muted); margin-left:auto;"></span>
+    </div>
+    <div class="replay-legend" id="replayLegend"></div>
   </div>
 </div>
 
@@ -322,6 +420,7 @@ const USECASES = {
       { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_brake ? "ON" : "OFF"}</span>` },
       { header: "Actual stop (m)", cell: (f) => f.actual_stopping_distance_m },
       { header: "Required with margin (m)", cell: (f) => f.required_distance_with_margin_m },
+      { header: "Replay", cell: (f) => `<button class="replay-btn" data-replay-id="${f.id}">Replay</button>`, csvSkip: true },
     ],
   },
   lka: {
@@ -346,6 +445,7 @@ const USECASES = {
       { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_intervene ? "ON" : "OFF"}</span>` },
       { header: "Actual TTLC (s)", cell: (f) => fmtNum(f.actual_ttlc_s) },
       { header: "Expected TTLC with margin (s)", cell: (f) => fmtNum(f.expected_ttlc_s) },
+      { header: "Replay", cell: (f) => `<button class="replay-btn" data-replay-id="${f.id}">Replay</button>`, csvSkip: true },
     ],
   },
   acc: {
@@ -369,6 +469,7 @@ const USECASES = {
       { header: "Expected", cell: (f) => `<span class="pill expected">${f.expected_decelerate ? "ON" : "OFF"}</span>` },
       { header: "Desired gap (m)", cell: (f) => f.actual_desired_gap_m },
       { header: "Required with margin (m)", cell: (f) => f.expected_desired_gap_with_margin_m },
+      { header: "Replay", cell: (f) => `<button class="replay-btn" data-replay-id="${f.id}">Replay</button>`, csvSkip: true },
     ],
   },
 };
@@ -744,7 +845,8 @@ function toCsvField(value) {
 
 function downloadFailuresCsv() {
   if (failuresState.rows.length === 0) return;
-  const columns = USECASES[activeUsecase].columns;
+  // The Replay column is a button, not data - it's left out of the CSV.
+  const columns = USECASES[activeUsecase].columns.filter((c) => !c.csvSkip);
   const headerLine = columns.map((c) => toCsvField(c.header)).join(",");
   const dataLines = failuresState.rows.map((f) =>
     columns.map((c) => toCsvField(String(c.cell(f)).replace(/<[^>]+>/g, ""))).join(",")
@@ -832,6 +934,7 @@ async function runTests() {
 
 function switchUsecase(usecase) {
   if (usecase === activeUsecase) return;
+  closeReplay();
   activeUsecase = usecase;
   document.getElementById("subtitle").textContent = USECASES[usecase].subtitle;
   document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -841,6 +944,491 @@ function switchUsecase(usecase) {
   loadSummary();
   loadHistory();
 }
+
+// ---------------------------------------------------------------------------
+// Scenario replay - reconstructs a simplified physical timeline from a
+// failed scenario's inputs/outputs (already sent to the browser in the
+// failures table - no extra API call needed) and animates it on a canvas.
+// The point isn't a precise physics simulation, it's letting you *watch*
+// why a FAIL happened instead of only reading it as a row of numbers: the
+// obstacle/lead vehicle sitting between the "physical" line and the
+// "required with safety margin" line is exactly the story
+// test_engine/assertions.py (and the LKA/ACC equivalents) describe.
+// ---------------------------------------------------------------------------
+
+function kmhToMs(kmh) { return kmh / 3.6; }
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// Threshold/legend colors are given as "var(--name)" so they always match
+// the active light/dark theme - this resolves one to the real color the
+// canvas 2D context needs (it doesn't understand CSS custom properties).
+function resolveColor(c) {
+  const m = /^var\((--[a-zA-Z0-9-]+)\)$/.exec(c);
+  return m ? cssVar(m[1]) : c;
+}
+
+function buildAebScene(f) {
+  const speedMs = kmhToMs(f.vehicle_speed_kmh);
+  const delayS = f.sensor_delay_ms / 1000;
+  const reactionDist = speedMs * delayS;
+  // actual_stopping_distance_m (virtual_ecu/aeb.py) is reaction + braking
+  // distance combined - the braking-only portion is what's left over.
+  const brakingDist = Math.max(0, f.actual_stopping_distance_m - reactionDist);
+  const brakeStartT = delayS;
+  const decel = speedMs > 0 ? (speedMs * speedMs) / (2 * Math.max(brakingDist, 0.001)) : 0;
+  const brakeDurationT = f.actual_brake && decel > 0 ? speedMs / decel : 0;
+  const stopT = brakeStartT + brakeDurationT;
+  const timeToObstacle = speedMs > 0 ? f.obstacle_distance_m / speedMs : 0;
+  const duration = f.actual_brake
+    ? Math.min(stopT + 1.0, 12)
+    : Math.min(Math.max(timeToObstacle, brakeStartT) + 1.0, 12);
+
+  function egoPos(t) {
+    if (t <= brakeStartT || !f.actual_brake) return speedMs * t;
+    const tb = Math.min(t - brakeStartT, brakeDurationT);
+    return reactionDist + speedMs * tb - 0.5 * decel * tb * tb;
+  }
+
+  function statusAt(t) {
+    if (t < brakeStartT) return "Sensor/ECU reacting...";
+    return f.actual_brake ? "AEB: BRAKE ON" : "AEB: no braking (actual = OFF)";
+  }
+
+  return {
+    kind: "longitudinal",
+    duration,
+    rangeMax: Math.max(f.obstacle_distance_m, f.required_distance_with_margin_m, f.actual_stopping_distance_m, 1) * 1.15,
+    egoLabel: "Ego vehicle",
+    objectLabel: "Obstacle",
+    egoPos,
+    objectPos: () => f.obstacle_distance_m,
+    thresholds: [
+      { value: f.actual_stopping_distance_m, label: "Physical stopping distance", color: "var(--text-muted)" },
+      { value: f.required_distance_with_margin_m, label: "Required with safety margin", color: "var(--critical)" },
+    ],
+    statusAt,
+  };
+}
+
+// Must match config.LKA_TTLC_THRESHOLD_S / config.LKA_SAFETY_MARGIN on the
+// backend. These are fixed constants (not scenario-specific), so mirroring
+// them here is the same trick already used for GRAVITY_M_S2 above.
+const LKA_TTLC_THRESHOLD_S = 1.0;
+const LKA_SAFETY_MARGIN = 1.15;
+const LKA_MARGIN_THRESHOLD_S = LKA_TTLC_THRESHOLD_S * LKA_SAFETY_MARGIN;
+
+function buildLkaScene(f) {
+  const sign = f.lateral_offset_m < 0 ? -1 : 1;
+  const distToEdge0 = f.distance_to_edge_m;
+  const drifting = f.lateral_velocity_m_s > 0 && distToEdge0 > 0 && !f.driver_steering_active;
+  // actual_ttlc_s and expected_ttlc_s are the SAME raw physics projection
+  // (virtual_ecu/lka.py and test_engine/lka_assertions.py use the identical
+  // distance/velocity formula) - the margin doesn't change this number, it
+  // changes the THRESHOLD it gets compared against (1.0s vs. 1.15s, see
+  // LKA_MARGIN_THRESHOLD_S above). So intervene is a single decision made
+  // once for the whole scenario, not something that happens partway
+  // through the drift - the gauge below is what actually shows the "why".
+  const ttlc = f.actual_ttlc_s;
+  const duration = drifting ? Math.min((ttlc || 0) + 1.0, 12) : 4;
+
+  function lateralPos(t) {
+    if (!drifting) return f.lateral_offset_m;
+    const remaining = Math.max(0, distToEdge0 - f.lateral_velocity_m_s * t);
+    return sign * (f.lane_half_width_m - remaining);
+  }
+
+  function statusAt(t) {
+    if (f.driver_steering_active) return "Driver is steering - LKA stays passive";
+    if (!drifting) return "Not drifting toward the edge";
+    const verdict = f.actual_intervene ? "LKA: INTERVENE (actual)" : "LKA: no intervention (actual = OFF)";
+    const crossed = ttlc !== null && t >= ttlc;
+    return crossed ? verdict + " - vehicle has now crossed the edge" : verdict;
+  }
+
+  return {
+    kind: "lateral",
+    duration,
+    halfWidth: f.lane_half_width_m,
+    forwardSpeedMs: kmhToMs(f.vehicle_speed_kmh),
+    lateralPos,
+    statusAt,
+    // The TTLC gauge is a static reference (the computed TTLC doesn't
+    // change - it was projected once, at t=0) showing that same number
+    // against both thresholds, which is what actually explains a FAIL:
+    // a computed TTLC between 1.0s and 1.15s means "safe" by the actual
+    // system's stricter threshold but "should intervene" by the spec's
+    // more cautious one.
+    ttlcGauge:
+      ttlc === null
+        ? null
+        : { ttlc, actualThreshold: LKA_TTLC_THRESHOLD_S, marginThreshold: LKA_MARGIN_THRESHOLD_S },
+  };
+}
+
+function buildAccScene(f) {
+  const relMs = f.relative_speed_m_s; // positive = closing in on the lead vehicle
+  const gap0 = f.gap_distance_m;
+  const closing = relMs > 0;
+  const timeToZero = closing ? gap0 / relMs : Infinity;
+  const duration = Math.min(closing ? Math.max(timeToZero, 1) : 5, 12);
+
+  function objectPos(t) {
+    return Math.max(0, gap0 - relMs * t);
+  }
+
+  function statusAt() {
+    if (f.driver_override_active) return "Driver on the accelerator - ACC override";
+    return f.actual_decelerate ? "ACC: DECELERATE ON" : "ACC: no deceleration (actual = OFF)";
+  }
+
+  return {
+    kind: "longitudinal",
+    duration,
+    rangeMax: Math.max(gap0, f.expected_desired_gap_with_margin_m, f.actual_desired_gap_m, 1) * 1.15,
+    egoLabel: "Ego vehicle",
+    objectLabel: "Lead vehicle",
+    egoPos: () => 0,
+    objectPos,
+    thresholds: [
+      { value: f.actual_desired_gap_m, label: "Desired gap (actual)", color: "var(--text-muted)" },
+      { value: f.expected_desired_gap_with_margin_m, label: "Required with safety margin", color: "var(--critical)" },
+    ],
+    statusAt,
+  };
+}
+
+function drawVehicleMarker(ctx, x, y, color, label) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x - 12, y - 8, 24, 16, 4);
+  else ctx.rect(x - 12, y - 8, 24, 16);
+  ctx.fill();
+  ctx.fillStyle = resolveColor("var(--text-secondary)");
+  ctx.font = "10px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(label, x, y + 26);
+}
+
+function drawLongitudinalScene(ctx, w, h, scene, t) {
+  ctx.clearRect(0, 0, w, h);
+  const pad = 24;
+  const roadY = h / 2;
+  const scale = (w - pad * 2) / scene.rangeMax;
+  const toX = (m) => pad + m * scale;
+  const clampX = (x) => Math.max(pad, Math.min(w - pad, x));
+
+  ctx.strokeStyle = resolveColor("var(--gridline)");
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pad, roadY);
+  ctx.lineTo(w - pad, roadY);
+  ctx.stroke();
+
+  // Distance-scale ticks along the road.
+  const step = Math.max(1, Math.round(scene.rangeMax / 4));
+  ctx.font = "9px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  for (let v = 0; v <= scene.rangeMax; v += step) {
+    const x = toX(v);
+    ctx.strokeStyle = resolveColor("var(--gridline)");
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, roadY + 4);
+    ctx.lineTo(x, roadY - 4);
+    ctx.stroke();
+    ctx.fillStyle = resolveColor("var(--text-muted)");
+    ctx.fillText(Math.round(v) + "m", x, roadY + 46);
+  }
+
+  scene.thresholds.forEach((th, i) => {
+    const x = toX(th.value);
+    ctx.save();
+    ctx.strokeStyle = resolveColor(th.color);
+    ctx.setLineDash([5, 4]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, roadY - 34);
+    ctx.lineTo(x, roadY + 34);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = resolveColor(th.color);
+    ctx.font = "10.5px system-ui, sans-serif";
+    ctx.fillText(th.label, x, roadY - 40 - i * 12);
+  });
+
+  drawVehicleMarker(ctx, clampX(toX(scene.objectPos(t))), roadY, resolveColor("var(--critical)"), scene.objectLabel);
+  drawVehicleMarker(ctx, clampX(toX(scene.egoPos(t))), roadY, resolveColor("var(--sequential)"), scene.egoLabel);
+}
+
+function drawLateralScene(ctx, w, h, scene, t) {
+  ctx.clearRect(0, 0, w, h);
+  // The bottom strip of the canvas is reserved for the TTLC gauge (when
+  // there is one to show) - the lane view above it gets the rest.
+  const gaugeH = scene.ttlcGauge ? 56 : 0;
+  const laneH = h - gaugeH;
+  const midX = w / 2;
+  const laneScale = (w * 0.55) / (scene.halfWidth * 2);
+  const leftEdgeX = midX - scene.halfWidth * laneScale;
+  const rightEdgeX = midX + scene.halfWidth * laneScale;
+
+  ctx.fillStyle = resolveColor("var(--gridline)");
+  ctx.globalAlpha = 0.25;
+  ctx.fillRect(leftEdgeX, 0, rightEdgeX - leftEdgeX, laneH);
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = resolveColor("var(--critical)");
+  ctx.lineWidth = 2;
+  [leftEdgeX, rightEdgeX].forEach((x) => {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, laneH);
+    ctx.stroke();
+  });
+
+  // Dashed center line, scrolled over time to suggest forward motion -
+  // purely decorative, driven by the scenario's own vehicle_speed_kmh.
+  const scrollOffset = (scene.forwardSpeedMs * t * 40) % 28;
+  ctx.save();
+  ctx.strokeStyle = resolveColor("var(--gridline)");
+  ctx.lineWidth = 2;
+  ctx.setLineDash([14, 14]);
+  ctx.lineDashOffset = -scrollOffset;
+  ctx.beginPath();
+  ctx.moveTo(midX, 0);
+  ctx.lineTo(midX, laneH);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = resolveColor("var(--text-muted)");
+  ctx.font = "10.5px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Lane edge", leftEdgeX, 14);
+  ctx.fillText("Lane edge", rightEdgeX, 14);
+
+  const pos = scene.lateralPos(t);
+  const crossed = Math.abs(pos) >= scene.halfWidth - 0.001;
+  const carX = Math.max(leftEdgeX - 14, Math.min(rightEdgeX + 14, midX + pos * laneScale));
+  const carY = laneH * 0.4;
+  ctx.fillStyle = resolveColor(crossed ? "var(--critical)" : "var(--sequential)");
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(carX - 9, carY - 16, 18, 32, 5);
+  else ctx.rect(carX - 9, carY - 16, 18, 32);
+  ctx.fill();
+
+  if (scene.ttlcGauge) drawTtlcGauge(ctx, w, laneH, gaugeH, scene.ttlcGauge);
+}
+
+// A static horizontal scale showing the scenario's computed TTLC against
+// the two thresholds it's judged by - this is the LKA equivalent of the
+// dashed distance lines in the AEB/ACC view, just on a time axis instead
+// of a spatial one (see the comment in buildLkaScene for why).
+function drawTtlcGauge(ctx, w, top, gaugeH, gauge) {
+  const pad = 24;
+  // Slightly above the strip's vertical center, so there's comfortable
+  // room both for the tick labels above the line and the TTLC label below
+  // it, without either one running past the canvas edge.
+  const y = top + gaugeH / 2 - 4;
+  const maxVal = Math.max(gauge.ttlc, gauge.marginThreshold, gauge.actualThreshold, 0.1) * 1.2;
+  const toX = (v) => pad + (v / maxVal) * (w - pad * 2);
+
+  ctx.strokeStyle = resolveColor("var(--gridline)");
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pad, y);
+  ctx.lineTo(w - pad, y);
+  ctx.stroke();
+
+  // Short numeric labels only - the legend below the canvas already spells
+  // out what each color means, so the gauge itself just needs the values.
+  const ticks = [
+    { value: gauge.actualThreshold, label: `${gauge.actualThreshold.toFixed(2)}s`, color: "var(--text-muted)" },
+    { value: gauge.marginThreshold, label: `${gauge.marginThreshold.toFixed(2)}s`, color: "var(--critical)" },
+  ];
+  ctx.font = "9px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ticks.forEach((tick) => {
+    const x = toX(tick.value);
+    ctx.save();
+    ctx.strokeStyle = resolveColor(tick.color);
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 9);
+    ctx.lineTo(x, y + 9);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = resolveColor(tick.color);
+    ctx.fillText(tick.label, x, y - 13);
+  });
+
+  const ttlcX = toX(gauge.ttlc);
+  ctx.fillStyle = resolveColor("var(--sequential)");
+  ctx.beginPath();
+  ctx.arc(ttlcX, y, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillText(`TTLC ${gauge.ttlc.toFixed(2)}s`, ttlcX, y + 20);
+}
+
+let replayState = null;
+
+function replayLegendFor(usecase) {
+  if (usecase === "aeb") {
+    return [
+      { color: "var(--sequential)", label: "Ego vehicle" },
+      { color: "var(--critical)", label: "Obstacle / required-margin line" },
+      { color: "var(--text-muted)", label: "Physical stopping distance" },
+    ];
+  }
+  if (usecase === "lka") {
+    return [
+      { color: "var(--sequential)", label: "Vehicle / computed TTLC" },
+      { color: "var(--critical)", label: "Lane edge crossed / required-margin threshold" },
+      { color: "var(--text-muted)", label: "Actual system's threshold" },
+    ];
+  }
+  return [
+    { color: "var(--sequential)", label: "Ego vehicle" },
+    { color: "var(--critical)", label: "Lead vehicle / required-margin line" },
+    { color: "var(--text-muted)", label: "Desired gap (actual)" },
+  ];
+}
+
+function replaySubtitleFor(usecase, f) {
+  if (usecase === "aeb") {
+    return `${f.vehicle_speed_kmh} km/h, obstacle at ${f.obstacle_distance_m} m, friction ${f.road_friction}, sensor delay ${f.sensor_delay_ms} ms`;
+  }
+  if (usecase === "lka") {
+    return `${f.vehicle_speed_kmh} km/h, offset ${f.lateral_offset_m} m, lane half-width ${f.lane_half_width_m} m, drift ${f.lateral_velocity_m_s} m/s`;
+  }
+  return `Ego ${f.ego_speed_kmh} km/h, lead ${f.lead_speed_kmh} km/h, gap ${f.gap_distance_m} m`;
+}
+
+// The lane view (LKA) normally uses the same 200px as AEB/ACC, but when
+// there's a TTLC gauge to show underneath it, the canvas needs extra
+// height for it - otherwise the gauge's labels get pushed past the bottom
+// edge of the canvas and end up clipped.
+function replayCanvasHeight(scene) {
+  return scene.kind === "lateral" && scene.ttlcGauge ? 256 : 200;
+}
+
+function openReplay(usecase, row) {
+  const scene =
+    usecase === "aeb" ? buildAebScene(row) : usecase === "lka" ? buildLkaScene(row) : buildAccScene(row);
+
+  document.getElementById("replayTitle").textContent = `${usecase.toUpperCase()} scenario #${row.id}`;
+  document.getElementById("replaySub").textContent = replaySubtitleFor(usecase, row);
+  const verdictEl = document.getElementById("replayVerdict");
+  verdictEl.textContent = row.passed ? "PASS" : "FAIL";
+  verdictEl.className = "verdict " + (row.passed ? "pass" : "fail");
+  document.getElementById("replayLegend").innerHTML = replayLegendFor(usecase)
+    .map((l) => `<span><i style="background:${resolveColor(l.color)}"></i>${l.label}</span>`)
+    .join("");
+  document.getElementById("replaySpeedSelect").value = "1";
+  document.getElementById("replayPlayBtn").textContent = "Pause";
+
+  // The overlay must actually be visible (display:flex) BEFORE measuring
+  // the canvas wrapper - while it's display:none its children report a
+  // zero-size rect, which would leave the canvas with zero width/height
+  // and nothing would ever be drawn into it.
+  document.getElementById("replayOverlay").style.display = "flex";
+
+  const canvas = document.getElementById("replayCanvas");
+  const ch = replayCanvasHeight(scene);
+  canvas.style.height = ch + "px";
+  const wrapRect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(wrapRect.width * dpr);
+  canvas.height = Math.round(ch * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  replayState = { usecase, scene, ctx, cw: wrapRect.width, ch, t: 0, speed: 1, playing: true, lastFrameTs: null };
+  requestAnimationFrame(replayTick);
+}
+
+function renderReplayFrame() {
+  const { ctx, cw, ch, scene, t } = replayState;
+  if (scene.kind === "longitudinal") drawLongitudinalScene(ctx, cw, ch, scene, t);
+  else drawLateralScene(ctx, cw, ch, scene, t);
+  document.getElementById("replayStatusText").textContent = scene.statusAt(t);
+  document.getElementById("replayTimeLabel").textContent = `t = ${t.toFixed(1)}s / ${scene.duration.toFixed(1)}s`;
+}
+
+function replayTick(ts) {
+  if (!replayState) return;
+  if (replayState.lastFrameTs === null) replayState.lastFrameTs = ts;
+  const dt = (ts - replayState.lastFrameTs) / 1000;
+  replayState.lastFrameTs = ts;
+
+  if (replayState.playing) {
+    replayState.t += dt * replayState.speed;
+    if (replayState.t >= replayState.scene.duration) {
+      replayState.t = replayState.scene.duration;
+      replayState.playing = false;
+      // Stays "Play" (not "Restart") - there's already a dedicated Restart
+      // button right next to it, so relabeling this one the same way just
+      // reads as two identical buttons. Clicking Play here still starts
+      // over from t=0 (see the click handler below).
+      document.getElementById("replayPlayBtn").textContent = "Play";
+    }
+  }
+
+  renderReplayFrame();
+  if (replayState) requestAnimationFrame(replayTick);
+}
+
+function closeReplay() {
+  replayState = null;
+  document.getElementById("replayOverlay").style.display = "none";
+}
+
+document.getElementById("failuresBody").addEventListener("click", (e) => {
+  const btn = e.target.closest(".replay-btn");
+  if (!btn) return;
+  const id = Number(btn.dataset.replayId);
+  const row = failuresState.rows.find((r) => r.id === id);
+  if (row) openReplay(activeUsecase, row);
+});
+document.getElementById("replayCloseBtn").addEventListener("click", closeReplay);
+document.getElementById("replayOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "replayOverlay") closeReplay();
+});
+document.getElementById("replayPlayBtn").addEventListener("click", () => {
+  if (!replayState) return;
+  if (!replayState.playing && replayState.t >= replayState.scene.duration) replayState.t = 0;
+  replayState.playing = !replayState.playing;
+  replayState.lastFrameTs = null;
+  document.getElementById("replayPlayBtn").textContent = replayState.playing ? "Pause" : "Play";
+});
+document.getElementById("replayRestartBtn").addEventListener("click", () => {
+  if (!replayState) return;
+  replayState.t = 0;
+  replayState.playing = true;
+  replayState.lastFrameTs = null;
+  document.getElementById("replayPlayBtn").textContent = "Pause";
+});
+document.getElementById("replaySpeedSelect").addEventListener("change", (e) => {
+  if (replayState) replayState.speed = Number(e.target.value);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && replayState) closeReplay();
+});
+window.addEventListener("resize", () => {
+  if (!replayState) return;
+  const canvas = document.getElementById("replayCanvas");
+  const ch = replayCanvasHeight(replayState.scene);
+  canvas.style.height = ch + "px";
+  const wrapRect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(wrapRect.width * dpr);
+  canvas.height = Math.round(ch * dpr);
+  replayState.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  replayState.cw = wrapRect.width;
+  replayState.ch = ch;
+});
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => switchUsecase(btn.dataset.usecase));
