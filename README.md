@@ -35,6 +35,10 @@ autotest-orchestrator/
 ├── scenarios/            # Scenario Engine - test scenario generation
 │   ├── schemas.py          #   Scenario (AEB), LKAScenario, ACCScenario dataclasses
 │   └── generator.py        #   generators for all three use cases
+├── critical_search/       # Critical scenario search - hill-climbing/simulated
+│   ├── aeb.py              #   annealing search for the safety-margin "gray zone",
+│   ├── lka.py               #   one file per use case (see "Critical scenario search" below)
+│   └── acc.py
 ├── test_engine/          # The heart of the system - execution, comparison, saving results
 │   ├── assertions.py       #   AEB expected/oracle (with safety margin)
 │   ├── runner.py            #   AEB TestEngine
@@ -48,7 +52,8 @@ autotest-orchestrator/
 │   ├── lka_failures.py      #   LKA
 │   └── acc_failures.py      #   ACC
 ├── api/                    # FastAPI - exposes the test engine over HTTP for the dashboard
-│   └── main.py               #   /api/run + /api/lka/run + /api/acc/run (and their /summary counterparts)
+│   └── main.py               #   /api/run + /api/lka/run + /api/acc/run (and their /summary
+│                              #   counterparts), plus /api/critical-search + its lka/acc variants
 ├── dashboard/                # Web UI (a single HTML file, no build step)
 │   └── index.html             #   AEB/LKA/ACC tabs, config-driven table columns
 ├── tests/                  # pytest tests (unit + integration), per use case
@@ -139,7 +144,14 @@ Then open **http://127.0.0.1:8000** in your browser. The dashboard has:
   "physical" and "required with safety margin" threshold lines - so a
   FAIL is something you can watch happen, not just read as a row of
   numbers. Play/pause, restart, and 0.5x/1x/2x speed controls are
-  included.
+  included,
+- a **"Critical scenario search" panel**, right below "Run a test run" -
+  instead of random scenarios, it deliberately searches for the
+  parameter combination closest to the safety-margin boundary (see
+  "Critical scenario search" below). Set the number of restarts and a
+  seed, click "Find critical scenarios", and get a table of genuine
+  FAILs ranked by risk score (most robust counterexample first) - with
+  the same Replay button and CSV download as the regular failures table.
 
 If you enter an invalid number of scenarios/seed (e.g. an empty field, a
 number outside the 1-50000 range, a decimal number) or the backend isn't
@@ -214,6 +226,13 @@ negative, that it never gets smaller when speed goes up, and that the
 the actual ECU decides to brake/intervene/decelerate. These run
 automatically as part of `pytest`/`pytest -v`, no separate command
 needed.
+
+`tests/test_critical_search.py` tests `critical_search/` itself: that a
+fixed, reasonable search budget reliably finds genuine FAILs (positive
+risk score, results sorted worst-first, no duplicate scenario ids), that
+the same seed always reproduces the same results, and that it never
+returns a scenario where a driver override/active steering would have
+made a FAIL impossible.
 
 ## CI/CD (GitHub Actions)
 
@@ -347,6 +366,40 @@ V2/V3, `assertions.py`/`lka_assertions.py`/`acc_assertions.py` stay the
 device - the separation then starts catching real differences in
 firmware, rounding, and timing too, on top of the margin.
 
+## Critical scenario search
+
+Random scenario generation (`scenarios/generator.py`) is good at coverage,
+but most randomly generated scenarios land far from the safety-margin
+"gray zone" described above, so most FAILs it finds are only barely
+FAILs. `critical_search/` (one file per use case, same convention as
+everywhere else) takes a different approach: it deliberately searches for
+the scenario that is the *most robust* counterexample - as far as
+possible into the gray zone, not just barely inside it.
+
+It's a hill-climbing search with random restarts and a small chance of
+accepting a worse candidate anyway (a simplified simulated annealing),
+scored by a single **risk score**, the same formula for all three use
+cases: `risk = min(distance_to_actual_threshold, distance_to_expected_threshold)`.
+A positive risk score means a genuine FAIL (actual and expected disagree);
+the larger it is, the further the scenario sits from both thresholds at
+once, i.e. the less of a coincidence the FAIL is. Each restart begins from
+a random scenario and perturbs one parameter at a time, keeping the move
+whenever it improves the risk score (occasionally keeping a worse move
+too, to avoid getting stuck), then reports the best FAIL it found for
+that restart. Results across all restarts are returned sorted worst-first.
+
+The search treats the Virtual ECU and the oracle as black boxes - it
+never looks at the underlying formulas to solve for the boundary
+directly, even though for these three simple use cases that would be
+possible. That's deliberate: it's the same approach that will still work
+once V2 replaces the software Virtual ECU with a real STM32/CAN ECU,
+where no such formula exists to invert.
+
+This is the industry practice usually called "falsification" or
+"critical scenario search" in the context of ISO 21448 (SOTIF) - instead
+of hoping random testing eventually stumbles onto the worst case, you
+search for it directly.
+
 ## Configuration (config.py)
 
 Every "number someone might want to tweak" - safety margins
@@ -369,12 +422,8 @@ build step, so those two values need to be kept manually in sync with
 
 1. More use cases, following the same pattern (e.g. Forward Collision
    Warning, Blind Spot Detection).
-2. **Critical scenario search** - replace/augment the current random
-   scenario generation with a search (hill-climbing/simulated annealing)
-   that deliberately hunts for the parameter combination closest to the
-   safety-margin boundary, similar to what the industry calls "critical
-   scenario search" / "falsification" in the context of ISO 21448
-   (SOTIF).
+2. ~~**Critical scenario search**~~ - shipped, see "Critical scenario
+   search" above (`critical_search/`).
 3. **AI-generated failure reports** - an LLM-written, human-readable
    root-cause summary over a run's failure clusters (built on top of
    `analytics/failures.py` and its LKA/ACC equivalents), e.g. "80% of AEB

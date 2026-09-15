@@ -90,7 +90,7 @@
     color: var(--text-primary);
     font-size: 14px;
   }
-  button#runBtn {
+  .primary-btn {
     padding: 9px 18px;
     border-radius: 6px;
     border: none;
@@ -100,7 +100,7 @@
     font-weight: 600;
     cursor: pointer;
   }
-  button#runBtn:disabled { opacity: .6; cursor: default; }
+  .primary-btn:disabled { opacity: .6; cursor: default; }
   .status-line { font-size: 13px; color: var(--text-secondary); margin-top: 10px; min-height: 18px; }
   .status-line.error { color: var(--critical); }
 
@@ -293,9 +293,47 @@
         <label for="seedInput">Seed</label>
         <input id="seedInput" type="number" value="42" />
       </div>
-      <button id="runBtn">Run tests</button>
+      <button id="runBtn" class="primary-btn">Run tests</button>
     </div>
     <div id="statusLine" class="status-line"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Critical Scenario Search</h2>
+    <p class="table-note" style="margin-top:-8px; margin-bottom: 14px;">
+      Instead of random scenarios, this deliberately searches (hill-climbing
+      with random restarts) for the parameter combination closest to the
+      safety-margin boundary - the scenarios most likely to be FAILs, ranked
+      by how robust a counterexample each one is (highest risk score first).
+    </p>
+    <div class="controls">
+      <div class="field">
+        <label for="criticalRestartsInput">Restarts</label>
+        <input id="criticalRestartsInput" type="number" min="1" max="500" value="40" />
+      </div>
+      <div class="field">
+        <label for="criticalSeedInput">Seed</label>
+        <input id="criticalSeedInput" type="number" value="123" />
+      </div>
+      <button id="criticalSearchBtn" class="primary-btn">Find critical scenarios</button>
+    </div>
+    <div id="criticalStatusLine" class="status-line"></div>
+
+    <div style="display:flex; justify-content:flex-end; margin: 16px 0 10px;">
+      <button class="page-btn" id="criticalDownloadCsvBtn" style="display:none">Download CSV</button>
+    </div>
+    <div class="table-scroll">
+      <table id="criticalTable" style="display:none">
+        <thead><tr id="criticalHeadRow"></tr></thead>
+        <tbody id="criticalBody"></tbody>
+      </table>
+      <p class="empty" id="criticalEmpty">No search run yet.</p>
+    </div>
+    <div class="pagination" id="criticalPagination" style="display:none">
+      <button class="page-btn" id="criticalPrevPageBtn">&larr; Previous</button>
+      <span class="page-info" id="criticalPageInfo"></span>
+      <button class="page-btn" id="criticalNextPageBtn">Next &rarr;</button>
+    </div>
   </div>
 
   <div class="panel">
@@ -403,6 +441,7 @@ const USECASES = {
     runUrl: "/api/run",
     summaryUrl: "/api/summary",
     historyUrl: "/api/history",
+    criticalSearchUrl: "/api/critical-search",
     patternLabels: {
       safety_margin_edge_case: "Safety margin (edge case)",
       high_speed_wet_road: "High speed + rain",
@@ -429,6 +468,7 @@ const USECASES = {
     runUrl: "/api/lka/run",
     summaryUrl: "/api/lka/summary",
     historyUrl: "/api/lka/history",
+    criticalSearchUrl: "/api/lka/critical-search",
     patternLabels: {
       safety_margin_edge_case: "Safety margin (edge case)",
       fast_drift: "Fast drift toward edge",
@@ -454,6 +494,7 @@ const USECASES = {
     runUrl: "/api/acc/run",
     summaryUrl: "/api/acc/summary",
     historyUrl: "/api/acc/history",
+    criticalSearchUrl: "/api/acc/critical-search",
     patternLabels: {
       safety_margin_edge_case: "Safety margin (edge case)",
       fast_closing: "Fast closing on lead vehicle",
@@ -481,6 +522,9 @@ let activeUsecase = "aeb";
 // readable when there are a lot of them.
 const PAGE_SIZE = 25;
 const failuresState = { rows: [], page: 1 };
+// Same idea, for the "Critical Scenario Search" table below - separate
+// state/DOM elements so the two tables never interfere with each other.
+const criticalState = { rows: [], page: 1 };
 
 // Must match config.MAX_SCENARIO_COUNT on the backend (and the <input max>
 // above) - this exists here only so the client can report an error right
@@ -492,6 +536,11 @@ const statusLine = document.getElementById("statusLine");
 const prevPageBtn = document.getElementById("prevPageBtn");
 const nextPageBtn = document.getElementById("nextPageBtn");
 const downloadCsvBtn = document.getElementById("downloadCsvBtn");
+const criticalSearchBtn = document.getElementById("criticalSearchBtn");
+const criticalStatusLine = document.getElementById("criticalStatusLine");
+const criticalPrevPageBtn = document.getElementById("criticalPrevPageBtn");
+const criticalNextPageBtn = document.getElementById("criticalNextPageBtn");
+const criticalDownloadCsvBtn = document.getElementById("criticalDownloadCsvBtn");
 
 function fmtPct(n) { return n.toFixed(2) + "%"; }
 
@@ -628,6 +677,157 @@ function renderFailuresPage() {
   }
 }
 
+// The critical-search table reuses each use case's normal `columns`
+// config (same fields, same Replay button - a critical-search result is
+// shaped exactly like a failed-scenario row, just with one extra number)
+// and prepends a "Risk score" column of its own.
+function criticalColumnsFor(usecase) {
+  return [{ header: "Risk score", cell: (f) => f.risk_score.toFixed(3) }, ...USECASES[usecase].columns];
+}
+
+function renderCritical(results) {
+  const table = document.getElementById("criticalTable");
+  const empty = document.getElementById("criticalEmpty");
+  const headRow = document.getElementById("criticalHeadRow");
+  const columns = criticalColumnsFor(activeUsecase);
+
+  headRow.innerHTML = columns.map((c) => `<th>${c.header}</th>`).join("");
+
+  criticalState.rows = results || [];
+  criticalState.page = 1;
+
+  if (criticalState.rows.length === 0) {
+    table.style.display = "none";
+    empty.style.display = "block";
+    document.getElementById("criticalPagination").style.display = "none";
+    criticalDownloadCsvBtn.style.display = "none";
+    return;
+  }
+
+  table.style.display = "table";
+  empty.style.display = "none";
+  criticalDownloadCsvBtn.style.display = "inline-block";
+  renderCriticalPage();
+}
+
+function renderCriticalPage() {
+  const body = document.getElementById("criticalBody");
+  const pagination = document.getElementById("criticalPagination");
+  const pageInfo = document.getElementById("criticalPageInfo");
+  const columns = criticalColumnsFor(activeUsecase);
+  const rows = criticalState.rows;
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+
+  criticalState.page = Math.min(Math.max(1, criticalState.page), pageCount);
+  const start = (criticalState.page - 1) * PAGE_SIZE;
+  const pageRows = rows.slice(start, start + PAGE_SIZE);
+
+  body.innerHTML = pageRows
+    .map((f) => `<tr>${columns.map((c) => `<td>${c.cell(f)}</td>`).join("")}</tr>`)
+    .join("");
+
+  if (rows.length <= PAGE_SIZE) {
+    pagination.style.display = "none";
+  } else {
+    pagination.style.display = "flex";
+    pageInfo.textContent = `Page ${criticalState.page} of ${pageCount} (rows ${start + 1}-${start + pageRows.length} of ${rows.length})`;
+    criticalPrevPageBtn.disabled = criticalState.page <= 1;
+    criticalNextPageBtn.disabled = criticalState.page >= pageCount;
+  }
+}
+
+function readCriticalInputs() {
+  const restartsRaw = document.getElementById("criticalRestartsInput").value.trim();
+  const seedRaw = document.getElementById("criticalSeedInput").value.trim();
+  const restarts = Number(restartsRaw);
+  const seed = Number(seedRaw);
+
+  if (restartsRaw === "" || !Number.isInteger(restarts) || restarts < 1 || restarts > 500) {
+    return { error: "Restarts must be a whole number between 1 and 500." };
+  }
+  if (seedRaw === "" || !Number.isInteger(seed)) {
+    return { error: "Seed must be a whole number." };
+  }
+  return { restarts, seed };
+}
+
+function setCriticalStatus(text, isError) {
+  criticalStatusLine.textContent = text;
+  criticalStatusLine.classList.toggle("error", !!isError);
+}
+
+async function runCriticalSearch() {
+  const inputs = readCriticalInputs();
+  if (inputs.error) {
+    setCriticalStatus(inputs.error, true);
+    return;
+  }
+  const { restarts, seed } = inputs;
+
+  criticalSearchBtn.disabled = true;
+  setCriticalStatus(`Searching (${restarts} restarts)...`, false);
+
+  let res;
+  try {
+    res = await fetch(USECASES[activeUsecase].criticalSearchUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restarts, seed }),
+    });
+  } catch (e) {
+    setCriticalStatus(describeFetchError(e), true);
+    criticalSearchBtn.disabled = false;
+    return;
+  }
+
+  if (!res.ok) {
+    let body = null;
+    try {
+      body = await res.json();
+    } catch (_) {
+      /* response wasn't JSON */
+    }
+    setCriticalStatus(describeFetchError(null, res, body), true);
+    criticalSearchBtn.disabled = false;
+    return;
+  }
+
+  try {
+    const data = await res.json();
+    renderCritical(data.results);
+    setCriticalStatus(
+      `Found ${data.found} critical scenario${data.found === 1 ? "" : "s"} out of ${data.restarts} restarts.`,
+      false
+    );
+  } catch (e) {
+    setCriticalStatus("Server returned an unexpected response.", true);
+  } finally {
+    criticalSearchBtn.disabled = false;
+  }
+}
+
+// Same CSV-export idea as downloadFailuresCsv, pointed at the
+// critical-search table's own rows/columns instead.
+function downloadCriticalCsv() {
+  if (criticalState.rows.length === 0) return;
+  const columns = criticalColumnsFor(activeUsecase).filter((c) => !c.csvSkip);
+  const headerLine = columns.map((c) => toCsvField(c.header)).join(",");
+  const dataLines = criticalState.rows.map((f) =>
+    columns.map((c) => toCsvField(String(c.cell(f)).replace(/<[^>]+>/g, ""))).join(",")
+  );
+  const csv = [headerLine, ...dataLines].join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${activeUsecase}_critical_scenarios_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function resetView() {
   document.getElementById("kpiTotal").textContent = "-";
   document.getElementById("kpiPassed").textContent = "-";
@@ -650,6 +850,14 @@ function resetView() {
   document.getElementById("trendTableBody").innerHTML = "";
   document.getElementById("trendNote").textContent = "";
   hideTrendTooltip();
+
+  document.getElementById("criticalTable").style.display = "none";
+  document.getElementById("criticalEmpty").style.display = "block";
+  document.getElementById("criticalPagination").style.display = "none";
+  criticalDownloadCsvBtn.style.display = "none";
+  criticalState.rows = [];
+  criticalState.page = 1;
+  setCriticalStatus("", false);
 }
 
 // Formats an ISO timestamp (UTC, e.g. "2026-09-11T14:03:00Z") into a
@@ -1443,6 +1651,25 @@ nextPageBtn.addEventListener("click", () => {
   renderFailuresPage();
 });
 downloadCsvBtn.addEventListener("click", downloadFailuresCsv);
+
+document.getElementById("criticalBody").addEventListener("click", (e) => {
+  const btn = e.target.closest(".replay-btn");
+  if (!btn) return;
+  const id = Number(btn.dataset.replayId);
+  const row = criticalState.rows.find((r) => r.id === id);
+  if (row) openReplay(activeUsecase, row);
+});
+criticalSearchBtn.addEventListener("click", runCriticalSearch);
+criticalPrevPageBtn.addEventListener("click", () => {
+  criticalState.page -= 1;
+  renderCriticalPage();
+});
+criticalNextPageBtn.addEventListener("click", () => {
+  criticalState.page += 1;
+  renderCriticalPage();
+});
+criticalDownloadCsvBtn.addEventListener("click", downloadCriticalCsv);
+
 loadSummary();
 loadHistory();
 </script>

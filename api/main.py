@@ -23,6 +23,9 @@ from analytics.failures import failure_pattern_summary, group_failures
 from analytics.lka_failures import failure_pattern_summary as lka_failure_pattern_summary
 from analytics.lka_failures import group_failures as lka_group_failures
 from config import MAX_SCENARIO_COUNT, RUN_HISTORY_DISPLAY_LIMIT
+from critical_search.acc import find_critical_scenarios as find_acc_critical_scenarios
+from critical_search.aeb import find_critical_scenarios as find_aeb_critical_scenarios
+from critical_search.lka import find_critical_scenarios as find_lka_critical_scenarios
 from scenarios.generator import (
     generate_edge_case_acc_scenarios,
     generate_edge_case_lka_scenarios,
@@ -56,6 +59,12 @@ _last_acc_run: Optional[dict] = None
 class RunRequest(BaseModel):
     count: int = Field(default=1000, ge=1, le=MAX_SCENARIO_COUNT)
     seed: int = Field(default=42)
+
+
+class CriticalSearchRequest(BaseModel):
+    restarts: int = Field(default=40, ge=1, le=500)
+    iterations: int = Field(default=150, ge=1, le=2000)
+    seed: int = Field(default=123)
 
 
 def _build_run_payload(count: int, seed: int) -> dict:
@@ -223,6 +232,49 @@ def get_acc_summary() -> dict:
 @app.get("/api/acc/history")
 def get_acc_history() -> dict:
     return {"entries": read_history(HISTORY_DIR, "acc", RUN_HISTORY_DISPLAY_LIMIT)}
+
+
+# ---------------------------------------------------------------------------
+# Critical scenario search (critical_search/) - deliberately hunts for
+# scenarios inside the safety-margin "gray zone" instead of relying on
+# scenarios/generator.py's random sampling to stumble into it. Unlike
+# /api/run and friends above, this doesn't keep in-memory "last result"
+# state or write to results/ - each search is self-contained and returned
+# directly, ranked by risk_score (most robust counterexample first).
+# ---------------------------------------------------------------------------
+
+
+def _critical_search_payload(results, req: CriticalSearchRequest) -> dict:
+    items = []
+    for critical_result in results:
+        item = critical_result.result.to_dict()
+        item["risk_score"] = critical_result.risk_score
+        items.append(item)
+    return {
+        "restarts": req.restarts,
+        "iterations": req.iterations,
+        "seed": req.seed,
+        "found": len(items),
+        "results": items,
+    }
+
+
+@app.post("/api/critical-search")
+def run_critical_search(req: CriticalSearchRequest) -> dict:
+    results = find_aeb_critical_scenarios(req.restarts, req.iterations, req.seed)
+    return _critical_search_payload(results, req)
+
+
+@app.post("/api/lka/critical-search")
+def run_lka_critical_search(req: CriticalSearchRequest) -> dict:
+    results = find_lka_critical_scenarios(req.restarts, req.iterations, req.seed)
+    return _critical_search_payload(results, req)
+
+
+@app.post("/api/acc/critical-search")
+def run_acc_critical_search(req: CriticalSearchRequest) -> dict:
+    results = find_acc_critical_scenarios(req.restarts, req.iterations, req.seed)
+    return _critical_search_payload(results, req)
 
 
 # Static assets (CSS/JS are inline in index.html, but we keep /static for the future)
